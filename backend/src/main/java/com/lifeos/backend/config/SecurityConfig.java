@@ -10,16 +10,27 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http
+    ) throws Exception {
 
-        http
+        return http
                 .csrf(csrf -> csrf.disable())
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/v1/health").permitAll()
-                        .anyRequest().authenticated()
-                )
-                .httpBasic(Customizer.withDefaults());
 
-        return http.build();
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(
+                                "/api/v1/health",
+                                "/api/v1/auth/register",
+                                "/error"
+                        )
+                        .permitAll()
+
+                        .anyRequest()
+                        .authenticated()
+                )
+
+                .httpBasic(Customizer.withDefaults())
+
+                .build();
     }
 }
