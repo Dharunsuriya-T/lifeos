@@ -1,0 +1,37 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: lifeos-backend
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/lifeos?options=-c%20TimeZone=Asia/Kolkata
+    username: lifeos_user
+    password: lifeos_password
+
+  jpa:
+    open-in-view: false
+    
+    hibernate:
+      ddl-auto: validate
+
+    show-sql: true
+
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+logging:
+  level:
+    org.springframework.security: INFO
