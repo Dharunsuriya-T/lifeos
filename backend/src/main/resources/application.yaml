@@ -1,14 +1,14 @@
 server:
-  port: 8081
+  port: ${PORT:8081}
 
 spring:
   application:
     name: lifeos-backend
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/lifeos?options=-c%20TimeZone=Asia/Kolkata
-    username: lifeos_user
-    password: lifeos_password
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
 
   jpa:
     open-in-view: false
@@ -37,10 +37,9 @@ logging:
     org.springframework.security: INFO
 
 jwt:
-  secret: 7ecbe46f0a0f0c4e18d6d4fdf72f16c19f8e0f75d54f7f03d9f4bcd1eab7c5f
+  secret: ${JWT_SECRET}
   access-token-expiration: 900000
   refresh-token-expiration: 604800000
 
-
 google:
-  client-id: 855484496450-kr1ole20afeh7sb6tahqjnvj76gge44n.apps.googleusercontent.com
+  client-id: ${GOOGLE_CLIENT_ID}
