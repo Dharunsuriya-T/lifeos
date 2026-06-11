@@ -35,3 +35,12 @@ management:
 logging:
   level:
     org.springframework.security: INFO
+
+jwt:
+  secret: 7ecbe46f0a0f0c4e18d6d4fdf72f16c19f8e0f75d54f7f03d9f4bcd1eab7c5f
+  access-token-expiration: 900000
+  refresh-token-expiration: 604800000
+
+
+google:
+  client-id: 855484496450-kr1ole20afeh7sb6tahqjnvj76gge44n.apps.googleusercontent.com
