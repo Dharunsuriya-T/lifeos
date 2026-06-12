@@ -63,10 +63,13 @@ public class SecurityConfig {
         CorsConfiguration configuration =
                 new CorsConfiguration();
 
-        configuration.setAllowedOrigins(
+        configuration.setAllowedOriginPatterns(
                 List.of(
                         "http://localhost:5173",
-                        "https://lifeos-mu-sooty.vercel.app/"
+                        "https://lifeos-mu-sooty.vercel.app",
+                        "https://*.vercel.app",
+                        "http://localhost:[*]",
+                        "http://127.0.0.1:[*]"
                 )
         );
 
