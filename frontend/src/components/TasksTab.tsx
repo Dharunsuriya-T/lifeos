@@ -41,6 +41,34 @@ export function TasksTab({ tasks, goals, projects, roadmapNodes, saveTask, delet
 
   const [dueTime, setDueTime] = useState("12:00");
 
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategoryInput, setNewCategoryInput] = useState("");
+  const [categoryError, setCategoryError] = useState("");
+
+  const handleSaveCategory = () => {
+    const trimmed = newCategoryInput.trim();
+    if (!trimmed) {
+      setCategoryError("Name cannot be empty");
+      return;
+    }
+    if (trimmed.length > 20) {
+      setCategoryError("Max 20 characters");
+      return;
+    }
+    if (lifeAreas.some(a => a.toLowerCase() === trimmed.toLowerCase())) {
+      setCategoryError("Category already exists");
+      return;
+    }
+
+    const updated = [...customCategories, trimmed];
+    setCustomCategories(updated);
+    localStorage.setItem("lifeos_custom_categories", JSON.stringify(updated));
+    setLifeArea(trimmed);
+    setNewCategoryInput("");
+    setIsAddingCategory(false);
+    setCategoryError("");
+  };
+
   const handleOpenAdd = () => {
     setEditingTask(null);
     setTitle("");
@@ -118,8 +146,17 @@ export function TasksTab({ tasks, goals, projects, roadmapNodes, saveTask, delet
   const columns: { label: string; status: TaskStatus; style: React.CSSProperties }[] = [
     { label: "To Do", status: "TODO", style: { borderTop: "3px solid var(--text-muted)" } },
     { label: "In Progress", status: "IN_PROGRESS", style: { borderTop: "3px solid var(--primary)" } },
-    { label: "Done", status: "DONE", style: { borderTop: "3px solid var(--success)" } },
   ];
+
+  const getRecentCompletedTasks = () => {
+    const now = new Date().getTime();
+    return tasks.filter((t) => {
+      if (t.status !== "DONE") return false;
+      const refDateStr = t.updatedAt || t.createdAt || new Date().toISOString();
+      const compTime = new Date(refDateStr).getTime();
+      return (now - compTime) < 24 * 60 * 60 * 1000;
+    });
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
@@ -159,29 +196,38 @@ export function TasksTab({ tasks, goals, projects, roadmapNodes, saveTask, delet
                           <button
                             title="Move Back"
                             style={{ border: "none", background: "none", cursor: "pointer", fontSize: "14px" }}
-                            onClick={() => moveTask(task, col.status === "DONE" ? "IN_PROGRESS" : "TODO")}
+                            onClick={() => moveTask(task, "TODO")}
                           >
                             ←
                           </button>
                         )}
-                        {col.status !== "DONE" && (
-                          <button
-                            title="Move Forward"
-                            style={{ border: "none", background: "none", cursor: "pointer", fontSize: "14px" }}
-                            onClick={() => moveTask(task, col.status === "TODO" ? "IN_PROGRESS" : "DONE")}
-                          >
-                            →
-                          </button>
-                        )}
+                        <button
+                          title="Complete Task"
+                          style={{ border: "none", background: "none", cursor: "pointer", fontSize: "14px" }}
+                          onClick={() => moveTask(task, "DONE")}
+                        >
+                          →
+                        </button>
                       </div>
                     </div>
 
-                    <h4
-                      style={{ fontSize: "15px", margin: 0, cursor: "pointer", textDecoration: col.status === "DONE" ? "line-through" : "none" }}
-                      onClick={() => handleOpenEdit(task)}
-                    >
-                      {task.title}
-                    </h4>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <input
+                        type="checkbox"
+                        checked={task.status === "DONE"}
+                        onChange={(e) => {
+                          const newStatus: TaskStatus = e.target.checked ? "DONE" : "TODO";
+                          moveTask(task, newStatus);
+                        }}
+                        style={{ cursor: "pointer", width: "16px", height: "16px", flexShrink: 0 }}
+                      />
+                      <h4
+                        style={{ fontSize: "15px", margin: 0, cursor: "pointer", textDecoration: task.status === "DONE" ? "line-through" : "none", flexGrow: 1 }}
+                        onClick={() => handleOpenEdit(task)}
+                      >
+                        {task.title}
+                      </h4>
+                    </div>
 
                     {task.description && (
                       <p style={{ fontSize: "12px", color: "var(--text-muted)", margin: 0 }}>
@@ -211,6 +257,67 @@ export function TasksTab({ tasks, goals, projects, roadmapNodes, saveTask, delet
             </div>
           );
         })}
+      </div>
+
+      {/* Completed Tasks (Last 24 Hours) Section */}
+      <div className="card" style={{ padding: "24px", marginTop: "12px", border: "1px solid rgba(16, 185, 129, 0.2)", display: "flex", flexDirection: "column", gap: "16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--surface-border)", paddingBottom: "12px" }}>
+          <h3 style={{ fontSize: "16px", fontWeight: "700", display: "flex", alignItems: "center", gap: "8px", margin: 0 }}>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--success)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            <span>Completed Tasks (Last 24 Hours)</span>
+          </h3>
+          <span style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: "600" }}>
+            {getRecentCompletedTasks().length} completed
+          </span>
+        </div>
+
+        {getRecentCompletedTasks().length === 0 ? (
+          <div style={{ padding: "20px 0", textAlign: "center", color: "var(--text-muted)", fontSize: "13px", fontStyle: "italic" }}>
+            No tasks completed in the last 24 hours.
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "16px" }}>
+            {getRecentCompletedTasks().map((task) => (
+              <div key={task.id} style={{ padding: "14px", border: "1px solid var(--surface-border)", borderRadius: "var(--border-radius-sm)", backgroundColor: "var(--bg)", display: "flex", flexDirection: "column", gap: "8px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span className="tag" style={{ fontSize: "9px", padding: "2px 6px" }}>{task.lifeArea}</span>
+                  <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+                    Completed: {task.updatedAt ? new Date(task.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Recently"}
+                  </span>
+                </div>
+                
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <input
+                    type="checkbox"
+                    checked={true}
+                    onChange={() => moveTask(task, "TODO")}
+                    style={{ cursor: "pointer", width: "16px", height: "16px", flexShrink: 0 }}
+                  />
+                  <h4 style={{ fontSize: "14px", margin: 0, textDecoration: "line-through", color: "var(--text-muted)", cursor: "pointer", flexGrow: 1 }} onClick={() => handleOpenEdit(task)}>
+                    {task.title}
+                  </h4>
+                </div>
+
+                {task.description && (
+                  <p style={{ fontSize: "11px", color: "var(--text-muted)", margin: 0 }}>
+                    {task.description.slice(0, 50)}{task.description.length > 50 ? "..." : ""}
+                  </p>
+                )}
+
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid var(--surface-border)", paddingTop: "8px", marginTop: "4px" }}>
+                  <button className="btn btn-secondary" style={{ padding: "4px 8px", fontSize: "11px" }} onClick={() => handleOpenEdit(task)}>
+                    Details
+                  </button>
+                  <button className="btn btn-danger" style={{ padding: "4px 8px", fontSize: "11px", background: "transparent", color: "var(--danger)" }} onClick={() => deleteTask("tasks", task.id)}>
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Add/Edit Modal */}
@@ -249,34 +356,71 @@ export function TasksTab({ tasks, goals, projects, roadmapNodes, saveTask, delet
               <div className="grid-cols-2" style={{ gap: "12px" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                   <label style={{ fontSize: "13px", fontWeight: "600" }}>Life Area / Category</label>
-                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                    <select className="select" style={{ flexGrow: 1 }} value={lifeArea} onChange={(e) => setLifeArea(e.target.value)}>
-                      {lifeAreas.map((area) => (
-                        <option key={area} value={area}>
-                          {area}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      className="btn btn-secondary"
-                      style={{ padding: "4px 8px", fontSize: "12px", height: "34px" }}
-                      onClick={() => {
-                        const newCat = prompt("Enter new custom category name:");
-                        if (newCat && newCat.trim()) {
-                          const trimmed = newCat.trim();
-                          if (!customCategories.includes(trimmed)) {
-                            const updated = [...customCategories, trimmed];
-                            setCustomCategories(updated);
-                            localStorage.setItem("lifeos_custom_categories", JSON.stringify(updated));
-                            setLifeArea(trimmed);
-                          } else {
-                            setLifeArea(trimmed);
-                          }
-                        }
-                      }}
-                    >
-                      + Custom
-                    </button>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center", width: "100%" }}>
+                    {!isAddingCategory ? (
+                      <>
+                        <select className="select" style={{ flexGrow: 1 }} value={lifeArea} onChange={(e) => setLifeArea(e.target.value)}>
+                          {lifeAreas.map((area) => (
+                            <option key={area} value={area}>
+                              {area}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          className="btn btn-secondary"
+                          style={{ padding: "4px 8px", fontSize: "12px", height: "34px" }}
+                          onClick={() => {
+                            setIsAddingCategory(true);
+                            setCategoryError("");
+                          }}
+                        >
+                          + Custom
+                        </button>
+                      </>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
+                        <div style={{ display: "flex", gap: "4px", alignItems: "center", width: "100%" }}>
+                          <input
+                            type="text"
+                            className="input"
+                            placeholder="New category..."
+                            style={{ flexGrow: 1, padding: "6px 10px", fontSize: "13px", height: "34px" }}
+                            value={newCategoryInput}
+                            onChange={(e) => {
+                              setNewCategoryInput(e.target.value);
+                              setCategoryError("");
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleSaveCategory();
+                            }}
+                            autoFocus
+                          />
+                          <button
+                            className="btn btn-primary"
+                            style={{ padding: "6px 10px", fontSize: "11px", height: "34px" }}
+                            onClick={handleSaveCategory}
+                          >
+                            Save
+                          </button>
+                          <button
+                            className="btn btn-secondary"
+                            style={{ padding: "6px 10px", fontSize: "11px", height: "34px", color: "var(--danger)", borderColor: "rgba(239, 68, 68, 0.2)" }}
+                            onClick={() => {
+                              setIsAddingCategory(false);
+                              setNewCategoryInput("");
+                              setCategoryError("");
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                        {categoryError && (
+                          <span style={{ fontSize: "10px", color: "var(--danger)", fontWeight: "600", marginTop: "2px" }}>
+                            {categoryError}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 

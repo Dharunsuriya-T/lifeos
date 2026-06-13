@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useFeedback } from "../hooks/useFeedback";
 
-import type { DashboardData, Goal, Roadmap, RoadmapNode, Task, Project, ProjectMilestone, Habit, HabitLog, Journal, HorizonGoal } from "../types/lifeOs";
+import type { Goal, Roadmap, RoadmapNode, Task, Project, ProjectMilestone, Habit, HabitLog, Journal, HorizonGoal } from "../types/lifeOs";
 import { calculateDashboardData } from "../utils/calculators";
 
 interface Props {
@@ -42,7 +43,21 @@ export function DashboardTab({
   saveHorizonGoal,
   onNavigate,
 }: Props) {
-  const [dbData, setDbData] = useState<DashboardData | null>(null);
+  const { showToast } = useFeedback();
+  const dbData = useMemo(() => {
+    return calculateDashboardData(
+      goals,
+      roadmaps,
+      roadmapNodes,
+      tasks,
+      projects,
+      projectMilestones,
+      habits,
+      habitLogs,
+      journals
+    );
+  }, [goals, roadmaps, roadmapNodes, tasks, projects, projectMilestones, habits, habitLogs, journals]);
+
   const [quickWin, setQuickWin] = useState("");
   const [quickWinSaved, setQuickWinSaved] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState<NotificationSetting>(
@@ -54,7 +69,7 @@ export function DashboardTab({
   // Request browser notification permission
   const requestNotificationPermission = async () => {
     if (!("Notification" in window)) {
-      alert("This browser does not support desktop notifications.");
+      showToast("This browser does not support desktop notifications.", "error");
       return;
     }
     const permission = await Notification.requestPermission();
@@ -89,20 +104,7 @@ export function DashboardTab({
     return () => clearInterval(interval);
   }, [tasks, notificationPermission]);
 
-  useEffect(() => {
-    const localData = calculateDashboardData(
-      goals,
-      roadmaps,
-      roadmapNodes,
-      tasks,
-      projects,
-      projectMilestones,
-      habits,
-      habitLogs,
-      journals
-    );
-    setDbData(localData);
-  }, [goals, roadmaps, roadmapNodes, tasks, projects, projectMilestones, habits, habitLogs, journals]);
+  // Removed useEffect calculation of dbData in favor of useMemo
 
   const toggleTaskStatus = (task: Task) => {
     const newStatus = task.status === "DONE" ? "TODO" : "DONE";

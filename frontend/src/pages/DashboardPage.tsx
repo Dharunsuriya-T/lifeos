@@ -4,6 +4,7 @@ import { clearTokens, getRefreshToken } from "../utils/auth";
 import { logout } from "../api/authApi";
 import { useLifeOsSync } from "../hooks/useLifeOsSync";
 import { useGoogleLogin } from "@react-oauth/google";
+import { useFeedback } from "../hooks/useFeedback";
 
 
 import { DashboardTab } from "../components/DashboardTab";
@@ -86,7 +87,9 @@ const ICONS: Record<Tab, React.ReactNode> = {
 
 function DashboardPage() {
   const navigate = useNavigate();
+  const { showToast } = useFeedback();
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userName, setUserName] = useState("User");
   const [userEmail, setUserEmail] = useState("");
   const [theme, setTheme] = useState<"light" | "dark">(
@@ -239,10 +242,12 @@ function DashboardPage() {
         localStorage.setItem("lifeos_habit_logs", JSON.stringify(mergedLogs));
         localStorage.setItem("lifeos_horizon_goals", JSON.stringify(mergedHorizonGoals));
 
-        alert("Backup JSON successfully imported and merged!");
-        window.location.reload();
+        showToast("Backup JSON successfully imported and merged!", "success");
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
       } catch (err) {
-        alert("Failed to parse the backup file. Ensure it is a valid LifeOS JSON export.");
+        showToast("Failed to parse the backup file. Ensure it is a valid LifeOS JSON export.", "error");
       }
     };
     fileReader.readAsText(files[0]);
@@ -308,6 +313,13 @@ function DashboardPage() {
 
   const getInitials = () => {
     return userName.slice(0, 2).toUpperCase();
+  };
+
+  const getSyncLabel = () => {
+    if (sync.googleDriveSyncing) return "Syncing with Google Drive...";
+    if (sync.googleDriveSyncError) return `Sync Error: ${sync.googleDriveSyncError}`;
+    if (sync.googleDriveConnected) return "Connected and synced with Google Drive";
+    return "Not connected to Google Drive";
   };
 
   const renderActiveTab = () => {
@@ -425,7 +437,7 @@ function DashboardPage() {
             habits={sync.habits}
             habitLogs={sync.habitLogs}
             journals={sync.journals}
-            learningItems={sync.learningItems}
+            horizonGoals={sync.horizonGoals}
           />
         );
       default:
@@ -438,7 +450,7 @@ function DashboardPage() {
     { id: "goals", label: "Goals" },
     { id: "roadmaps", label: "Roadmaps" },
     { id: "tasks", label: "Tasks" },
-    { id: "notes", label: "Notes Notebook" },
+    { id: "notes", label: "Notes" },
     { id: "journal", label: "Daily Reflections" },
     { id: "habits", label: "Habit Tracker" },
     { id: "learning", label: "Horizon Goals" },
@@ -448,7 +460,7 @@ function DashboardPage() {
   return (
     <div className="app-container">
       {/* Sidebar navigation */}
-      <aside className="sidebar">
+      <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="brand">
           <div className="brand-logo">L</div>
           <span className="brand-name">LifeOS</span>
@@ -459,7 +471,10 @@ function DashboardPage() {
             <button
               key={item.id}
               className={`nav-item ${activeTab === item.id ? "active" : ""}`}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => {
+                setActiveTab(item.id);
+                setSidebarOpen(false);
+              }}
               style={{ display: "flex", alignItems: "center", gap: "12px" }}
             >
               <span className="nav-icon-container" style={{ display: "flex", alignItems: "center" }}>
@@ -618,8 +633,72 @@ function DashboardPage() {
         </div>
       </aside>
 
+      {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
+
       {/* Main viewport */}
-      <main className="main-content">{renderActiveTab()}</main>
+      <main className="main-content">
+        <header className="main-header">
+          <button className="mobile-toggle-btn" onClick={() => setSidebarOpen(true)}>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+          </button>
+          
+          <div className="header-breadcrumbs">
+            <span className="breadcrumb-parent">LifeOS</span>
+            <span className="breadcrumb-separator">/</span>
+            <span className="breadcrumb-current">
+              {navMenuItems.find((item) => item.id === activeTab)?.label}
+            </span>
+          </div>
+
+          <div className="header-actions">
+            {/* Sync Badge */}
+            <div
+              className={`sync-status-compact ${sync.googleDriveConnected ? "connected" : ""}`}
+              onClick={() => sync.triggerSync()}
+              title={getSyncLabel()}
+            >
+              <span className={`sync-dot ${sync.googleDriveSyncing ? "syncing" : ""}`}></span>
+              <span style={{ fontSize: "11px", fontWeight: "600" }}>
+                {sync.googleDriveSyncing ? "Syncing..." : "Synced"}
+              </span>
+            </div>
+
+            {/* Theme Toggle */}
+            <button className="theme-icon-btn" onClick={toggleTheme} title="Toggle Theme">
+              {theme === "dark" ? (
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="5"/>
+                  <line x1="12" y1="1" x2="12" y2="3"/>
+                  <line x1="12" y1="21" x2="12" y2="23"/>
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                  <line x1="1" y1="12" x2="3" y2="12"/>
+                  <line x1="21" y1="12" x2="23" y2="12"/>
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+              )}
+            </button>
+
+            {/* Logout Button */}
+            <button className="btn btn-secondary btn-lux-logout" onClick={logoutHandler}>
+              Logout
+            </button>
+          </div>
+        </header>
+
+        <div className="main-content-body">
+          {renderActiveTab()}
+        </div>
+      </main>
 
       {/* Help Tour Floating Button */}
       <button
@@ -650,7 +729,7 @@ function DashboardPage() {
 
       {/* Help Tour Overlay */}
       {tourStep !== null && (
-        <div className="modal-overlay" style={{ zIndex: 1001 }}>
+        <div className="modal-overlay" style={{ zIndex: 1001, backdropFilter: "none", backgroundColor: "rgba(9, 13, 22, 0.3)" }}>
           <div className="modal-content" style={{ width: "420px", padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }}>
             <div className="modal-header">
               <h2 style={{ fontSize: "18px", fontWeight: "700" }}>{TOUR_STEPS[tourStep].title}</h2>

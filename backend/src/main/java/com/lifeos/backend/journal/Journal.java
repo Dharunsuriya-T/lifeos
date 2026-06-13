@@ -1,6 +1,7 @@
 package com.lifeos.backend.journal;
 
 import com.lifeos.backend.common.BaseEntity;
+import com.lifeos.backend.common.CryptoConverter;
 import com.lifeos.backend.user.User;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -29,13 +30,17 @@ public class Journal extends BaseEntity {
     @Column(name = "entry_date", nullable = false)
     private LocalDate entryDate;
 
+    @Convert(converter = CryptoConverter.class)
     private String wins;
 
+    @Convert(converter = CryptoConverter.class)
     private String challenges;
 
+    @Convert(converter = CryptoConverter.class)
     @Column(name = "lessons_learned")
     private String lessonsLearned;
 
+    @Convert(converter = CryptoConverter.class)
     private String gratitude;
 
     private String mood;

@@ -18,7 +18,7 @@ interface Props {
 }
 
 // Marketplace official templates
-const MARKETPLACE_TEMPLATES = [
+export const MARKETPLACE_TEMPLATES = [
   {
     id: "tpl-backend",
     title: "Backend Developer (Java Stack)",

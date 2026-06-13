@@ -1,6 +1,11 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import type { Goal, Roadmap, RoadmapNode, Task, Note, Habit } from "../types/lifeOs";
 import { calculateNodeProgress } from "../utils/calculators";
+import { MARKETPLACE_TEMPLATES } from "./RoadmapsTab";
+import { clearTokens, getRefreshToken } from "../utils/auth";
+import { logout } from "../api/authApi";
+import { useFeedback } from "../hooks/useFeedback";
 
 interface Props {
   goal: Goal;
@@ -36,9 +41,25 @@ export function GoalWorkspace({
   saveHabit,
   deleteEntity,
 }: Props) {
+  const navigate = useNavigate();
+  const { showConfirm } = useFeedback();
   const [activeTab, setActiveTab] = useState<"roadmap" | "tree" | "timeline" | "progress" | "resources">("roadmap");
   const [selectedNode, setSelectedNode] = useState<RoadmapNode | null>(null);
   const [rescheduleNotification, setRescheduleNotification] = useState<string | null>(null);
+
+  const handleLogout = async () => {
+    try {
+      const refreshToken = getRefreshToken();
+      if (refreshToken) {
+        await logout(refreshToken);
+      }
+    } catch (error) {
+      console.error("Logout from workspace failed: ", error);
+    } finally {
+      clearTokens();
+      navigate("/login");
+    }
+  };
 
   // Folder resource states
   const [collapsedFolders, setCollapsedFolders] = useState<{ [category: string]: boolean }>({});
@@ -49,14 +70,14 @@ export function GoalWorkspace({
   const [activeResourceNote, setActiveResourceNote] = useState<Note | null>(null);
 
   // Side Panel Inline Form States
-  const [newSubgoalTitle, setNewSubgoalTitle] = useState("");
   const [newMilestoneTitle, setNewMilestoneTitle] = useState("");
   const [newMilestoneDate, setNewMilestoneDate] = useState("");
   const [selectedHabitToLink, setSelectedHabitToLink] = useState("");
   const [newHabitTitle, setNewHabitTitle] = useState("");
   const [newHabitFreq, setNewHabitFreq] = useState<"DAILY" | "WEEKLY">("DAILY");
-  const [newChildNodeTitle, setNewChildNodeTitle] = useState("");
-  const [newChildNodeDesc, setNewChildNodeDesc] = useState("");
+  const [settingsSaved, setSettingsSaved] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [showHabitsBox, setShowHabitsBox] = useState(false);
 
   // Node Editing States
   const [editingNodeTitle, setEditingNodeTitle] = useState("");
@@ -196,6 +217,62 @@ export function GoalWorkspace({
     saveRoadmap(roadmapData, []);
   };
 
+  const handleImportRoadmap = (template: any) => {
+    const newRoadmapId = crypto.randomUUID();
+    const roadmapData: Roadmap = {
+      id: newRoadmapId,
+      title: template.title,
+      description: template.description || "",
+      goalId: goal.id,
+      isTemplate: false,
+      isPublic: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    let nodeDataList: RoadmapNode[] = [];
+    if (template.isStatic) {
+      nodeDataList = template.nodes.map((n: any, idx: number) => ({
+        id: crypto.randomUUID(),
+        roadmapId: newRoadmapId,
+        title: n.title,
+        description: n.description || "",
+        resources: n.resources || "",
+        status: "NOT_STARTED",
+        orderIndex: idx,
+        progress: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }));
+    } else {
+      const templateNodes = roadmapNodes
+        .filter((n) => n.roadmapId === template.id)
+        .sort((a, b) => a.orderIndex - b.orderIndex);
+
+      const idMap = new Map<string, string>();
+      templateNodes.forEach((n) => {
+        idMap.set(n.id, crypto.randomUUID());
+      });
+
+      nodeDataList = templateNodes.map((n, idx) => ({
+        id: idMap.get(n.id)!,
+        roadmapId: newRoadmapId,
+        parentNodeId: n.parentNodeId ? idMap.get(n.parentNodeId) : undefined,
+        title: n.title,
+        description: n.description || "",
+        resources: n.resources || "",
+        status: "NOT_STARTED",
+        orderIndex: idx,
+        progress: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }));
+    }
+
+    saveRoadmap(roadmapData, nodeDataList);
+    setShowImportModal(false);
+  };
+
   const handleAddRootNode = () => {
     if (!roadmap) return;
     const newNode: RoadmapNode = {
@@ -228,6 +305,11 @@ export function GoalWorkspace({
     const newNodes = activeNodes.map((n) => (n.id === selectedNode.id ? updated : n));
     saveRoadmap(roadmap, newNodes);
     setSelectedNode(updated);
+
+    setSettingsSaved(true);
+    setTimeout(() => {
+      setSettingsSaved(false);
+    }, 3000);
   };
 
   const handleDeleteNode = (nodeId: string) => {
@@ -241,25 +323,6 @@ export function GoalWorkspace({
   };
 
   // Node tasks handlers
-  const handleAddSubgoal = () => {
-    if (!selectedNode || !newSubgoalTitle.trim()) return;
-    saveTask({
-      id: crypto.randomUUID(),
-      goalId: goal.id,
-      roadmapNodeId: selectedNode.id,
-      title: newSubgoalTitle.trim(),
-      description: "Subgoal created in workspace node details",
-      status: "TODO",
-      priority: "MEDIUM",
-      isRecurring: false,
-      estimatedTime: 0,
-      actualTime: 0,
-      lifeArea: goal.lifeArea,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-    setNewSubgoalTitle("");
-  };
 
   const handleAddMilestone = () => {
     if (!selectedNode || !newMilestoneTitle.trim() || !newMilestoneDate) return;
@@ -347,25 +410,7 @@ export function GoalWorkspace({
     }
   };
 
-  const handleAddChildNode = () => {
-    if (!selectedNode || !roadmap || !newChildNodeTitle.trim()) return;
-    const newNode: RoadmapNode = {
-      id: crypto.randomUUID(),
-      roadmapId: roadmap.id,
-      parentNodeId: selectedNode.id,
-      title: newChildNodeTitle.trim(),
-      description: newChildNodeDesc.trim() || "Sub-step node.",
-      resources: "",
-      status: "NOT_STARTED",
-      orderIndex: activeNodes.length,
-      progress: 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    saveRoadmap(roadmap, [...activeNodes, newNode]);
-    setNewChildNodeTitle("");
-    setNewChildNodeDesc("");
-  };
+
 
   // Render tree helper
   const renderTreeNodes = (parentTaskId: string | undefined, depth: number = 0) => {
@@ -467,28 +512,68 @@ export function GoalWorkspace({
             <span style={{ fontSize: "11px", fontWeight: "700", color: "var(--text-muted)", textTransform: "uppercase" }}>
               Step {index + 1}
             </span>
-            <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-              <span
-                className="tag"
+            <div style={{ display: "flex", gap: "10px", alignItems: "center" }} onClick={(e) => e.stopPropagation()}>
+              <select
+                className="select"
                 style={{
-                  fontSize: "10px",
-                  padding: "2px 6px",
-                  backgroundColor:
-                    node.status === "COMPLETED"
-                      ? "rgba(16, 185, 129, 0.1)"
-                      : node.status === "IN_PROGRESS"
-                      ? "var(--primary-light)"
-                      : "var(--surface-border)",
-                  color:
-                    node.status === "COMPLETED"
-                      ? "var(--success)"
-                      : node.status === "IN_PROGRESS"
-                      ? "var(--primary)"
-                      : "var(--text-muted)",
+                  fontSize: "11px",
+                  padding: "4px 8px",
+                  height: "auto",
+                  minHeight: "28px",
+                  lineHeight: "1.2",
+                  width: "110px",
+                  backgroundColor: "rgba(255,255,255,0.03)",
+                  border: "1px solid var(--surface-border)",
+                  color: "var(--text)",
+                  borderRadius: "var(--border-radius-sm)",
+                  cursor: "pointer",
+                  margin: 0,
+                }}
+                value={node.status}
+                onChange={(e) => {
+                  const newStatus = e.target.value as RoadmapNode["status"];
+                  const updated: RoadmapNode = {
+                    ...node,
+                    status: newStatus,
+                    updatedAt: new Date().toISOString(),
+                  };
+                  const newNodes = activeNodes.map((n) => (n.id === node.id ? updated : n));
+                  saveRoadmap(roadmap!, newNodes);
                 }}
               >
-                {node.status.replace("_", " ")}
-              </span>
+                <option value="NOT_STARTED">Not Started</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="COMPLETED">Completed</option>
+              </select>
+
+              <button
+                className="btn"
+                style={{
+                  padding: "4px 8px",
+                  fontSize: "11px",
+                  color: "var(--danger)",
+                  border: "1px solid rgba(239, 68, 68, 0.15)",
+                  backgroundColor: "rgba(239, 68, 68, 0.05)",
+                  borderRadius: "var(--border-radius-sm)",
+                  cursor: "pointer",
+                  fontWeight: "600",
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = "var(--danger)";
+                  e.currentTarget.style.color = "#ffffff";
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = "rgba(239, 68, 68, 0.05)";
+                  e.currentTarget.style.color = "var(--danger)";
+                }}
+                onClick={() => {
+                  showConfirm("Are you sure you want to delete this step?", () => {
+                    handleDeleteNode(node.id);
+                  });
+                }}
+              >
+                Delete
+              </button>
             </div>
           </div>
           <div>
@@ -833,9 +918,9 @@ export function GoalWorkspace({
                           style={{ border: "none", background: "transparent", color: "var(--danger)", cursor: "pointer", fontSize: "12px", padding: "2px" }}
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (confirm(`Are you sure you want to delete resource "${note.title}"?`)) {
+                            showConfirm(`Are you sure you want to delete resource "${note.title}"?`, () => {
                               deleteEntity("notes", note.id);
-                            }
+                            });
                           }}
                         >
                           ✕
@@ -863,18 +948,17 @@ export function GoalWorkspace({
 
     const nodeTasks = tasks.filter((t) => t.roadmapNodeId === selectedNode.id);
     const nodeMilestones = nodeTasks.filter((t) => t.title.startsWith("[Milestone]"));
-    const nodeSubgoals = nodeTasks.filter((t) => !t.title.startsWith("[Milestone]"));
 
     const nodeProgress = calculateNodeProgress(selectedNode.id, activeNodes, tasks);
 
     return (
-      <div className="workspace-fullscreen" style={{ overflowY: "auto", paddingBottom: "40px" }}>
-        <div className="workspace-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--surface-border)", paddingBottom: "16px", marginBottom: "20px" }}>
+      <div className="workspace-fullscreen">
+        <div className="workspace-header">
           <div>
             <button
               className="btn btn-secondary"
               onClick={() => setSelectedNode(null)}
-              style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px", fontSize: "13px" }}
+              style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px" }}
             >
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="19" y1="12" x2="5" y2="12" />
@@ -882,12 +966,8 @@ export function GoalWorkspace({
               </svg>
               <span>Back to Goal Workspace</span>
             </button>
-            <h2 style={{ fontSize: "22px", fontWeight: "700" }}>{selectedNode.title}</h2>
-            <p style={{ color: "var(--text-muted)", fontSize: "14px", margin: "4px 0 0" }}>
-              Detailed step and roadmap node settings.
-            </p>
           </div>
-          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
             <span
               className="tag"
               style={{
@@ -913,8 +993,17 @@ export function GoalWorkspace({
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr", gap: "28px" }}>
+        <div className="workspace-body">
+          <div style={{ marginBottom: "24px" }}>
+            <h2 style={{ fontSize: "24px", fontWeight: "700" }}>{selectedNode.title}</h2>
+            <p style={{ color: "var(--text-muted)", fontSize: "14px", margin: "4px 0 0" }}>
+              Detailed step and roadmap node settings.
+            </p>
+          </div>
+
+          <div className="workspace-grid">
           <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+            {/* 1. Step Settings */}
             <div className="card" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
               <h3 style={{ fontSize: "16px", fontWeight: "700", borderBottom: "1px solid var(--surface-border)", paddingBottom: "10px", margin: "0" }}>Step Settings</h3>
               
@@ -925,7 +1014,6 @@ export function GoalWorkspace({
                   className="input"
                   value={editingNodeTitle}
                   onChange={(e) => setEditingNodeTitle(e.target.value)}
-                  onBlur={handleUpdateNode}
                 />
               </div>
 
@@ -936,213 +1024,44 @@ export function GoalWorkspace({
                   rows={3}
                   value={editingNodeDesc}
                   onChange={(e) => setEditingNodeDesc(e.target.value)}
-                  onBlur={handleUpdateNode}
                 />
               </div>
 
-              <div className="grid-cols-2" style={{ gap: "12px" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <label style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-muted)" }}>Target Deadline</label>
-                  <input
-                    type="date"
-                    className="input"
-                    value={editingNodeDeadline}
-                    onChange={(e) => setEditingNodeDeadline(e.target.value)}
-                    onBlur={handleUpdateNode}
-                  />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <label style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-muted)" }}>Status</label>
-                  <select
-                    className="select"
-                    value={editingNodeStatus}
-                    onChange={(e) => {
-                      setEditingNodeStatus(e.target.value as any);
-                    }}
-                    onBlur={handleUpdateNode}
-                  >
-                    <option value="NOT_STARTED">Not Started</option>
-                    <option value="IN_PROGRESS">In Progress</option>
-                    <option value="COMPLETED">Completed</option>
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ borderTop: "1px solid var(--surface-border)", paddingTop: "14px", marginTop: "6px" }}>
-                <h4 style={{ fontSize: "13px", fontWeight: "700", marginBottom: "12px" }}>Sub-steps Timeline</h4>
-                {activeNodes.filter((n) => n.parentNodeId === selectedNode.id).length === 0 ? (
-                  <div style={{ fontSize: "12.5px", color: "var(--text-muted)", fontStyle: "italic", marginBottom: "12px" }}>
-                    No nested sub-steps defined yet.
-                  </div>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "16px" }}>
-                    {activeNodes
-                      .filter((n) => n.parentNodeId === selectedNode.id)
-                      .sort((a, b) => a.orderIndex - b.orderIndex)
-                      .map((child) => (
-                        <div
-                          key={child.id}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            padding: "8px 12px",
-                            backgroundColor: "var(--surface)",
-                            border: "1px solid var(--surface-border)",
-                            borderRadius: "var(--border-radius-sm)",
-                          }}
-                        >
-                          <div style={{ display: "flex", flexDirection: "column", gap: "2px", flexGrow: 1 }}>
-                            <span style={{ fontSize: "13px", fontWeight: "600" }}>{child.title}</span>
-                            {child.description && (
-                              <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>{child.description}</span>
-                            )}
-                          </div>
-                          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                            <button
-                              className="btn btn-secondary"
-                              style={{ padding: "4px 8px", fontSize: "11px" }}
-                              onClick={() => setSelectedNode(child)}
-                            >
-                              Open
-                            </button>
-                            <button
-                              className="btn btn-secondary"
-                              style={{ padding: "4px 8px", fontSize: "11px", color: "var(--danger)" }}
-                              onClick={() => handleDeleteNode(child.id)}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </div>
-
-              <div style={{ borderTop: "1px solid var(--surface-border)", paddingTop: "14px", marginTop: "6px" }}>
-                <h4 style={{ fontSize: "13px", fontWeight: "700", marginBottom: "8px" }}>Add Nested Child Node</h4>
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <input
-                    type="text"
-                    className="input"
-                    placeholder="Child step title..."
-                    value={newChildNodeTitle}
-                    onChange={(e) => setNewChildNodeTitle(e.target.value)}
-                  />
-                  <input
-                    type="text"
-                    className="input"
-                    placeholder="Child step description..."
-                    value={newChildNodeDesc}
-                    onChange={(e) => setNewChildNodeDesc(e.target.value)}
-                  />
-                  <button className="btn btn-secondary" onClick={handleAddChildNode}>
-                    Add Child Step Node
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="card" style={{ padding: "20px" }}>
-              <h3 style={{ fontSize: "16px", fontWeight: "700", borderBottom: "1px solid var(--surface-border)", paddingBottom: "10px", margin: "0 0 16px" }}>Linked Habits</h3>
-              
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px" }}>
-                {habits
-                  .filter((h) => h.description?.includes(`[Linked Node: ${selectedNode.id}]`))
-                  .map((habit) => (
-                    <div
-                      key={habit.id}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        fontSize: "13px",
-                        padding: "8px 12px",
-                        backgroundColor: "var(--surface)",
-                        border: "1px solid var(--surface-border)",
-                        borderRadius: "var(--border-radius-sm)",
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-                        </svg>
-                        <span>{habit.title}</span>
-                      </div>
-                      <button
-                        className="btn"
-                        style={{ padding: "4px 8px", color: "var(--danger)", background: "transparent", fontSize: "12px", border: "none", cursor: "pointer" }}
-                        onClick={() => handleUnlinkHabit(habit.id)}
-                      >
-                        Unlink
-                      </button>
-                    </div>
-                  ))}
-                {habits.filter((h) => h.description?.includes(`[Linked Node: ${selectedNode.id}]`)).length === 0 && (
-                  <span style={{ fontSize: "13px", color: "var(--text-muted)", fontStyle: "italic" }}>No habits linked yet.</span>
-                )}
-              </div>
-
-              <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
-                <select
-                  className="select"
-                  value={selectedHabitToLink}
-                  onChange={(e) => setSelectedHabitToLink(e.target.value)}
-                  style={{ flexGrow: 1 }}
-                >
-                  <option value="">-- Link existing habit --</option>
-                  {habits
-                    .filter((h) => !h.description?.includes(`[Linked Node: ${selectedNode.id}]`))
-                    .map((h) => (
-                      <option key={h.id} value={h.id}>
-                        {h.title}
-                      </option>
-                    ))}
-                </select>
-                <button className="btn btn-secondary" onClick={handleLinkHabit} disabled={!selectedHabitToLink}>
-                  Link
-                </button>
-              </div>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px", borderTop: "1px solid var(--surface-border)", paddingTop: "12px" }}>
-                <span style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-muted)" }}>Or Create & Link New Habit</span>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <label style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-muted)" }}>Target Deadline</label>
                 <input
-                  type="text"
+                  type="date"
                   className="input"
-                  placeholder="Habit title..."
-                  value={newHabitTitle}
-                  onChange={(e) => setNewHabitTitle(e.target.value)}
+                  value={editingNodeDeadline}
+                  onChange={(e) => setEditingNodeDeadline(e.target.value)}
                 />
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <select
-                    className="select"
-                    value={newHabitFreq}
-                    onChange={(e) => setNewHabitFreq(e.target.value as any)}
-                    style={{ flexGrow: 1 }}
-                  >
-                    <option value="DAILY">Daily</option>
-                    <option value="WEEKLY">Weekly</option>
-                  </select>
-                  <button className="btn btn-primary" onClick={handleCreateAndLinkHabit} disabled={!newHabitTitle.trim()}>
-                    Create
-                  </button>
-                </div>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", borderTop: "1px solid var(--surface-border)", paddingTop: "16px", marginTop: "12px" }}>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleUpdateNode}
+                  style={{ display: "flex", alignItems: "center", gap: "6px" }}
+                >
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                    <polyline points="17 21 17 13 7 13 7 21" />
+                    <polyline points="7 3 7 8 15 8" />
+                  </svg>
+                  <span>Save Settings</span>
+                </button>
+                {settingsSaved && (
+                  <span style={{ color: "var(--success)", fontSize: "13px", display: "flex", alignItems: "center", gap: "4px" }}>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    Saved successfully!
+                  </span>
+                )}
               </div>
             </div>
 
-            <div className="card" style={{ padding: "16px", border: "1px solid rgba(220, 38, 38, 0.2)" }}>
-              <button
-                className="btn btn-danger"
-                style={{ width: "100%", padding: "10px" }}
-                onClick={() => handleDeleteNode(selectedNode.id)}
-              >
-                Delete Step Node
-              </button>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+            {/* 2. Node Milestones */}
             <div className="card" style={{ padding: "20px" }}>
               <h3 style={{ fontSize: "16px", fontWeight: "700", borderBottom: "1px solid var(--surface-border)", paddingBottom: "10px", margin: "0 0 16px" }}>Node Milestones</h3>
               
@@ -1195,52 +1114,117 @@ export function GoalWorkspace({
               </div>
             </div>
 
+            {/* 3. Linked Habits (Collapsed/Optional header bar by default) */}
             <div className="card" style={{ padding: "20px" }}>
-              <h3 style={{ fontSize: "16px", fontWeight: "700", borderBottom: "1px solid var(--surface-border)", paddingBottom: "10px", margin: "0 0 16px" }}>Subgoals Checklist</h3>
-              
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px" }}>
-                {nodeSubgoals.map((t) => (
-                  <div key={t.id} style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "13px", padding: "6px 0" }}>
-                    <input
-                      type="checkbox"
-                      checked={t.status === "DONE"}
-                      onChange={() => handleToggleTask(t)}
-                    />
-                    <span style={{ flexGrow: 1, textDecoration: t.status === "DONE" ? "line-through" : "none" }}>
-                      {t.title}
-                    </span>
-                    <button
-                      style={{ border: "none", background: "transparent", color: "var(--danger)", cursor: "pointer", fontSize: "14px" }}
-                      onClick={() => handleDeleteTask(t.id)}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-                {nodeSubgoals.length === 0 && (
-                  <span style={{ fontSize: "13px", color: "var(--text-muted)", fontStyle: "italic" }}>No checklist items.</span>
-                )}
-              </div>
-
-              <div style={{ display: "flex", gap: "8px", borderTop: "1px solid var(--surface-border)", paddingTop: "12px" }}>
-                <input
-                  type="text"
-                  className="input"
-                  placeholder="New subgoal checklist item..."
-                  value={newSubgoalTitle}
-                  onChange={(e) => setNewSubgoalTitle(e.target.value)}
-                  style={{ flexGrow: 1 }}
-                />
-                <button className="btn btn-primary" onClick={handleAddSubgoal} disabled={!newSubgoalTitle.trim()}>
-                  Add
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: showHabitsBox ? "1px solid var(--surface-border)" : "none", paddingBottom: showHabitsBox ? "10px" : "0" }}>
+                <h3 style={{ fontSize: "16px", fontWeight: "700", margin: 0 }}>Linked Habits</h3>
+                <button
+                  className="btn btn-secondary"
+                  style={{ padding: "4px 8px", fontSize: "12px", display: "flex", alignItems: "center", gap: "4px" }}
+                  onClick={() => setShowHabitsBox(!showHabitsBox)}
+                >
+                  <span>{showHabitsBox ? "Hide" : "Manage"}</span>
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: showHabitsBox ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
                 </button>
               </div>
-            </div>
 
+              {showHabitsBox && (
+                <div style={{ marginTop: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {habits
+                      .filter((h) => h.description?.includes(`[Linked Node: ${selectedNode.id}]`))
+                      .map((habit) => (
+                        <div
+                          key={habit.id}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            fontSize: "13px",
+                            padding: "8px 12px",
+                            backgroundColor: "var(--surface)",
+                            border: "1px solid var(--surface-border)",
+                            borderRadius: "var(--border-radius-sm)",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                            </svg>
+                            <span>{habit.title}</span>
+                          </div>
+                          <button
+                            className="btn"
+                            style={{ padding: "4px 8px", color: "var(--danger)", background: "transparent", fontSize: "12px", border: "none", cursor: "pointer" }}
+                            onClick={() => handleUnlinkHabit(habit.id)}
+                          >
+                            Unlink
+                          </button>
+                        </div>
+                      ))}
+                    {habits.filter((h) => h.description?.includes(`[Linked Node: ${selectedNode.id}]`)).length === 0 && (
+                      <span style={{ fontSize: "13px", color: "var(--text-muted)", fontStyle: "italic" }}>No habits linked yet.</span>
+                    )}
+                  </div>
+
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <select
+                      className="select"
+                      value={selectedHabitToLink}
+                      onChange={(e) => setSelectedHabitToLink(e.target.value)}
+                      style={{ flexGrow: 1 }}
+                    >
+                      <option value="">-- Link existing habit --</option>
+                      {habits
+                        .filter((h) => !h.description?.includes(`[Linked Node: ${selectedNode.id}]`))
+                        .map((h) => (
+                          <option key={h.id} value={h.id}>
+                            {h.title}
+                          </option>
+                        ))}
+                    </select>
+                    <button className="btn btn-secondary" onClick={handleLinkHabit} disabled={!selectedHabitToLink}>
+                      Link
+                    </button>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", borderTop: "1px solid var(--surface-border)", paddingTop: "12px" }}>
+                    <span style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-muted)" }}>Or Create & Link New Habit</span>
+                    <input
+                      type="text"
+                      className="input"
+                      placeholder="Habit title..."
+                      value={newHabitTitle}
+                      onChange={(e) => setNewHabitTitle(e.target.value)}
+                    />
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <select
+                        className="select"
+                        value={newHabitFreq}
+                        onChange={(e) => setNewHabitFreq(e.target.value as any)}
+                        style={{ flexGrow: 1 }}
+                      >
+                        <option value="DAILY">Daily</option>
+                        <option value="WEEKLY">Weekly</option>
+                      </select>
+                      <button className="btn btn-primary" onClick={handleCreateAndLinkHabit} disabled={!newHabitTitle.trim()}>
+                        Create
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
             {renderResourceFoldersSection(selectedNode.id)}
           </div>
         </div>
       </div>
+    </div>
     );
   };
 
@@ -1336,7 +1320,7 @@ export function GoalWorkspace({
     <div className="workspace-fullscreen">
       <div className="workspace-header">
         <div>
-          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
             <span className="tag" style={{ backgroundColor: "var(--accent-light)", color: "var(--accent)" }}>
               {goal.lifeArea}
             </span>
@@ -1428,11 +1412,51 @@ export function GoalWorkspace({
               Goal Resources
             </button>
           </div>
-          <button className="btn btn-secondary" onClick={onClose}>
+        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+          <button
+            className="btn btn-secondary"
+            style={{
+              padding: "6px 14px",
+              fontSize: "13px",
+              fontWeight: "600",
+              borderRadius: "var(--border-radius-sm)",
+              cursor: "pointer",
+              transition: "var(--transition)",
+            }}
+            onClick={handleLogout}
+          >
+            Logout
+          </button>
+          <button
+            className="btn"
+            style={{
+              backgroundColor: "rgba(220, 38, 38, 0.05)",
+              color: "#dc2626",
+              border: "1px solid rgba(220, 38, 38, 0.3)",
+              padding: "6px 14px",
+              fontSize: "13px",
+              fontWeight: "600",
+              borderRadius: "var(--border-radius-sm)",
+              cursor: "pointer",
+              transition: "var(--transition)",
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.backgroundColor = "#dc2626";
+              e.currentTarget.style.color = "#ffffff";
+              e.currentTarget.style.borderColor = "#dc2626";
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.backgroundColor = "rgba(220, 38, 38, 0.05)";
+              e.currentTarget.style.color = "#dc2626";
+              e.currentTarget.style.borderColor = "rgba(220, 38, 38, 0.3)";
+            }}
+            onClick={onClose}
+          >
             Exit Workspace
           </button>
         </div>
       </div>
+    </div>
 
       <div className="workspace-body" style={{ position: "relative" }}>
         {rescheduleNotification && (
@@ -1466,11 +1490,16 @@ export function GoalWorkspace({
               <div style={{ textAlign: "center", padding: "60px 0" }}>
                 <h3 style={{ marginBottom: "8px" }}>No roadmap initialized for this goal</h3>
                 <p style={{ color: "var(--text-muted)", marginBottom: "20px" }}>
-                  Create a structured execution path with phases and milestones.
+                  Create a structured execution path with phases and milestones or import a public roadmap.
                 </p>
-                <button className="btn btn-primary" onClick={handleInitializeRoadmap}>
-                  Create Roadmap
-                </button>
+                <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+                  <button className="btn btn-primary" onClick={handleInitializeRoadmap}>
+                    Create Roadmap
+                  </button>
+                  <button className="btn btn-secondary" onClick={() => setShowImportModal(true)}>
+                    Import Community Roadmap
+                  </button>
+                </div>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "20px", alignItems: "flex-start" }}>
@@ -1772,6 +1801,102 @@ export function GoalWorkspace({
           </div>
         </div>
       )}
+      {showImportModal && (() => {
+        const importableItems = [
+          ...MARKETPLACE_TEMPLATES.map((t) => ({ ...t, isStatic: true })),
+          ...roadmaps
+            .filter((r) => r.isPublic)
+            .map((r) => ({
+              id: r.id,
+              title: r.title,
+              description: r.description,
+              isStatic: false,
+              stepCount: roadmapNodes.filter((n) => n.roadmapId === r.id).length,
+            })),
+        ];
+
+        return (
+          <div className="modal-overlay" style={{ zIndex: 1100 }}>
+            <div className="modal-content" style={{ width: "550px", padding: "24px", display: "flex", flexDirection: "column", gap: "16px", maxHeight: "80vh", overflowY: "auto" }}>
+              <div className="modal-header">
+                <h2 style={{ fontSize: "18px", fontWeight: "700" }}>Import Community Roadmap</h2>
+                <button
+                  className="btn"
+                  style={{ padding: "4px 8px", background: "transparent", border: "none", color: "var(--text-muted)", fontSize: "18px" }}
+                  onClick={() => setShowImportModal(false)}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                <p style={{ fontSize: "13px", color: "var(--text-muted)", margin: 0 }}>
+                  Select a public roadmap template to import into your current goal <strong>"{goal.title}"</strong>:
+                </p>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "8px" }}>
+                  {importableItems.map((item) => (
+                    <div
+                      key={item.id}
+                      style={{
+                        padding: "16px",
+                        borderRadius: "var(--border-radius-sm)",
+                        border: "1px solid var(--surface-border)",
+                        backgroundColor: "var(--bg)",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: "16px",
+                      }}
+                    >
+                      <div style={{ display: "flex", flexDirection: "column", gap: "4px", flexGrow: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{ fontWeight: "700", fontSize: "14px" }}>{item.title}</span>
+                          <span
+                            className="tag"
+                            style={{
+                              fontSize: "9px",
+                              padding: "2px 6px",
+                              backgroundColor: item.isStatic ? "rgba(99, 102, 241, 0.1)" : "rgba(16, 185, 129, 0.1)",
+                              color: item.isStatic ? "var(--primary)" : "var(--success)",
+                            }}
+                          >
+                            {item.isStatic ? "Official Template" : "Community Shared"}
+                          </span>
+                        </div>
+                        {item.description && (
+                          <span style={{ fontSize: "12px", color: "var(--text-muted)", lineHeight: "1.4" }}>
+                            {item.description}
+                          </span>
+                        )}
+                        {!(item as any).isStatic && (item as any).stepCount !== undefined && (
+                          <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+                            Steps count: {(item as any).stepCount}
+                          </span>
+                        )}
+                      </div>
+
+                      <button
+                        className="btn btn-primary"
+                        style={{ padding: "6px 12px", fontSize: "12px", flexShrink: 0 }}
+                        onClick={() => handleImportRoadmap(item)}
+                      >
+                        Import
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="modal-footer" style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+                <button className="btn btn-secondary" onClick={() => setShowImportModal(false)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

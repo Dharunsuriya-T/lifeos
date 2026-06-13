@@ -1,198 +1,90 @@
-# LifeOS Architecture
+# LifeOS Architecture Specification
 
-## Project Overview
-
-LifeOS is a privacy-first personal life management platform that helps users:
-
-- Capture thoughts quickly
-- Organize information
-- Manage tasks
-- Track goals and milestones
-- Measure progress
-- Maintain private journals
-- Receive reminders
-
-The platform will support:
-
-- Web (React)
-- Mobile (React Native)
-- Backend API (Spring Boot)
-- PostgreSQL Database
+This document details the software architecture, database design, technology integrations, and security models of the LifeOS personal execution platform.
 
 ---
 
-## Core Philosophy
+## 🎯 Architecture Diagram
 
-1. Capture Fast
-2. Organize Simply
-3. Track Progress
-4. Protect Privacy
-5. Build For Long-Term Growth
+```
+┌─────────────────────────────────────────────┐
+│           React Web Client (Vite)           │
+│       Runs offline-first (localStorage)     │
+└──────────────┬──────────────────────────────┘
+               │ API Sync / Google Drive Sync
+               ▼
+┌─────────────────────────────────────────────┐
+│       Spring Boot 3.5 API (Java 21)         │
+│   Manages JWT Auth & Transparent Encryption  │
+└──────────────┬──────────────────────────────┘
+               │ JPA/Hibernate (Flyway)
+               ▼
+┌─────────────────────────────────────────────┐
+│          PostgreSQL Database Server         │
+│   Foreign Key Indexes & Encrypted Columns   │
+└─────────────────────────────────────────────┘
 
----
-
-## Architecture
-
-React Web
-↓
-Spring Boot API
-↓
-PostgreSQL
-
-React Native
-↓
-Spring Boot API
-↓
-PostgreSQL
-
----
-
-## Technology Stack
-
-### Backend
-
-- Java 21
-- Spring Boot 3.5.x
-- Spring Security
-- Spring Data JPA
-- Flyway
-- PostgreSQL
-- Maven
-
-### Frontend
-
-- React
-- TypeScript
-- Vite
-- TailwindCSS
-
-### Mobile
-
-- React Native
-- Expo
-
-### Infrastructure
-
-- Docker
-- Git
-- GitHub
-
-### Deployment
-
-- Render (Backend)
-- Vercel (Frontend)
+┌─────────────────────────────────────────────┐
+│         React Native App (Expo)             │
+│    Local SQLite / AsyncStorage Cache        │
+└─────────────────────────────────────────────┘
+```
 
 ---
 
-## Architectural Decisions
+## 🛠️ Technology Stack
 
-### Decision 001
+### Backend API
+- **Java 21 & Spring Boot 3.5.x** — Application server.
+- **Spring Security & JWT** — Authentication, authorization, and secure endpoints.
+- **Spring Data JPA & Hibernate** — Object Relational Mapping (ORM) layer.
+- **Flyway** — Database migrations and schema version controls.
+- **PostgreSQL** — Production database database.
+- **Maven** — Dependency manager.
 
-Use UUIDs instead of auto-increment IDs.
+### Frontend Web
+- **React 19 & TypeScript** — Frontend UI library.
+- **Vite** — Fast dev server and client builder.
+- **Vanilla CSS** — Custom styling (Outfit display font, glassmorphism card variables, responsive styling).
+- **Google OAuth** — Integration for "Continue with Google" sign-in.
+- **React Hook Form** — Form validations.
 
-Reason:
-
-- Better security
-- Better mobile support
-- Better offline-sync support
-- Easier distributed systems support
-
-Status: Accepted
-
----
-
-### Decision 002
-
-Use Flyway for all database schema changes.
-
-Reason:
-
-- Version-controlled database changes
-- Safe deployments
-- Easier rollback and debugging
-
-Status: Accepted
+### Mobile Application
+- **React Native & Expo 51** — Cross-platform mobile client.
+- **AsyncStorage** — Client-side offline cache database.
 
 ---
 
-### Decision 003
+## 🔒 Security & Privacy Model
 
-Use PostgreSQL in Docker for local development.
+### 1. Database Column-Level Encryption (Journal Protection)
+To ensure that private journal records are not readable if the database gets compromised, we employ transparent AES encryption:
+- **JPA CryptoConverter**: Intercepts JPA transactions on `Journal` entity fields (`wins`, `challenges`, `lessonsLearned`, `gratitude`).
+- **AES-128 Encryption**: Uses Advanced Encryption Standard (AES) with key sizes specified in properties.
+- **Backwards Compatibility**: Built-in decryption failure catch-blocks fallback to plain text. This allows seamless transitions for legacy databases.
 
-Reason:
-
-- Consistent environment
-- Easy setup
-- Easier onboarding
-- Production-like workflow
-
-Status: Accepted
-
----
-
-### Decision 004
-
-Backend-first development approach.
-
-Workflow:
-
-Database
-→ Backend
-→ Tests
-→ Frontend
-→ Tests
-→ Deployment
-
-Reason:
-
-Frontend should consume stable APIs.
-
-Status: Accepted
+### 2. JWT Tokens & Refresh Token Rotation
+- **Stateless Sessions**: Authentication is verified using JWT tokens (expiration: 15 minutes).
+- **Refresh Tokens**: Stored securely in the database, verifying sessions and refreshing JWT tokens silently.
 
 ---
 
-## Planned V1 Modules
+## ⚡ Performance Optimization Design
 
-- Authentication
-- Goals
-- Milestones
-- Progress Tracking
-- Tasks
-- Checklists
-- Notes
-- Journal
-- Reminders
-- Dashboard
-- Search
-- Tags
-- Calendar
-- Google Login
+### 1. Database Indexing
+Flyway schema migration `V5` creates database indexes on all foreign key columns. This ensures that:
+- Deletions cascade quickly.
+- Join queries by `user_id`, `goal_id`, or `project_id` execute in logarithmic time, speeding up synchronization.
+
+### 2. Memoized Client-side Calculations
+To resolve lag when switching dashboard tabs, the application calculates Growth scores, journal streaks, and goal compliance ratios using `useMemo` hooks. This ensures calculation is performed exactly once when data changes, eliminating React double-renders.
 
 ---
 
-## Future Releases
+## 🗄️ Database Schema Migration Plan
 
-- AI Roadmap Generation
-- Roadmap Sharing
-- Offline Synchronization
-- Advanced Analytics
-- End-to-End Encryption
-- Collaboration Features
-
----
-
-## Current Status
-
-Phase: Foundation Complete
-
-Completed:
-
-- Git Repository
-- Docker PostgreSQL
-- Spring Boot Setup
-- Flyway Setup
-- Health Endpoint
-
-Next:
-
-Authentication Module
+- **V1__initial_schema**: Initial schema.
+- **V2__create_users_table**: Introduces users mapping table.
+- **V3__create_refresh_tokens_table**: Implements JWT refresh rotation keys.
+- **V4__create_lifeos_core_schema**: Establishes core tables (goals, roadmaps, roadmap_nodes, tasks, habits, habit_logs, journals, learning_items, projects, notes).
+- **V5__add_performance_indexes**: Indexes all foreign keys to optimize query, join, and sync responses.

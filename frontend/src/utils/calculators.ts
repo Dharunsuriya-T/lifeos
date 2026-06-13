@@ -8,16 +8,20 @@ import type {
   Habit,
   HabitLog,
   Journal,
-  LearningItem,
   DashboardData,
   AnalyticsData,
+  HorizonGoal,
 } from '../types/lifeOs';
 
 // Helper to decrement dates
 export const decrementDateStr = (dateStr: string, days: number): string => {
-  const d = new Date(dateStr + 'T00:00:00');
+  const parts = dateStr.split('-');
+  const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
   d.setDate(d.getDate() - days);
-  return d.toISOString().split('T')[0];
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
 };
 
 // Helper to check if a date is within a date range inclusive
@@ -286,7 +290,7 @@ export function calculateAnalyticsData(
   habits: Habit[],
   habitLogs: HabitLog[],
   journals: Journal[],
-  learningItems: LearningItem[]
+  horizonGoals: HorizonGoal[]
 ): AnalyticsData {
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -308,7 +312,7 @@ export function calculateAnalyticsData(
     let taskScore = 100;
     const activeTasks = tasks.filter(t => !t.createdAt || t.createdAt.split('T')[0] <= endDay);
     if (activeTasks.length > 0) {
-      const completed = activeTasks.filter(t => t.status === 'DONE' && t.updatedAt && t.updatedAt.split('T')[0] <= endDay).length;
+      const completed = activeTasks.filter(t => t.status === 'DONE' && (t.updatedAt || t.createdAt) && (t.updatedAt || t.createdAt)!.split('T')[0] <= endDay).length;
       taskScore = (completed / activeTasks.length) * 100;
     }
 
@@ -316,14 +320,15 @@ export function calculateAnalyticsData(
     const journalsCount = journals.filter(j => isDateInRange(j.entryDate, startDay, endDay)).length;
     const journalScore = Math.min(100, (journalsCount / 7) * 100);
 
-    // 4. Learning score
-    let learningScore = 100;
-    if (learningItems.length > 0) {
-      learningScore = learningItems.reduce((sum, item) => sum + (item.progressPercentage || 0), 0) / learningItems.length;
+    // 4. Horizon goals score
+    let horizonScore = 100;
+    if (horizonGoals.length > 0) {
+      const completed = horizonGoals.filter(g => g.status === 'DONE').length;
+      horizonScore = (completed / horizonGoals.length) * 100;
     }
 
     return Math.max(0, Math.min(100, Math.round(
-      (habitScore * 0.4) + (taskScore * 0.25) + (journalScore * 0.15) + (learningScore * 0.20)
+      (habitScore * 0.4) + (taskScore * 0.25) + (journalScore * 0.15) + (horizonScore * 0.20)
     )));
   };
 
@@ -354,7 +359,7 @@ export function calculateAnalyticsData(
     // Task completions in the last 14 days
     const last14DaysLimit = decrementDateStr(todayStr, 14);
     const completedInLast14 = goalTasks.filter(t =>
-      t.status === 'DONE' && t.updatedAt && t.updatedAt.split('T')[0] >= last14DaysLimit
+      t.status === 'DONE' && (t.updatedAt || t.createdAt) && (t.updatedAt || t.createdAt)!.split('T')[0] >= last14DaysLimit
     ).length;
 
     let tasksPerDay = completedInLast14 / 14;

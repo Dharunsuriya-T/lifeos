@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import type { Goal, Roadmap, RoadmapNode, Task, Project, ProjectMilestone, Habit, HabitLog, Journal, LearningItem, AnalyticsData } from "../types/lifeOs";
+import { useState, useMemo } from "react";
+import type { Goal, Roadmap, RoadmapNode, Task, Project, ProjectMilestone, Habit, HabitLog, Journal, HorizonGoal } from "../types/lifeOs";
 import { calculateAnalyticsData } from "../utils/calculators";
 
 interface Props {
@@ -12,7 +12,7 @@ interface Props {
   habits: Habit[];
   habitLogs: HabitLog[];
   journals: Journal[];
-  learningItems: LearningItem[];
+  horizonGoals: HorizonGoal[];
 }
 
 export function AnalyticsTab({
@@ -25,14 +25,13 @@ export function AnalyticsTab({
   habits,
   habitLogs,
   journals,
-  learningItems,
+  horizonGoals,
 }: Props) {
-  const [data, setData] = useState<AnalyticsData | null>(null);
   const [showWrapped, setShowWrapped] = useState(false);
   const [reportCopied, setReportCopied] = useState(false);
 
-  useEffect(() => {
-    const localStats = calculateAnalyticsData(
+  const data = useMemo(() => {
+    return calculateAnalyticsData(
       goals,
       roadmaps,
       roadmapNodes,
@@ -42,10 +41,9 @@ export function AnalyticsTab({
       habits,
       habitLogs,
       journals,
-      learningItems
+      horizonGoals
     );
-    setData(localStats);
-  }, [goals, roadmaps, roadmapNodes, tasks, projects, projectMilestones, habits, habitLogs, journals, learningItems]);
+  }, [goals, roadmaps, roadmapNodes, tasks, projects, projectMilestones, habits, habitLogs, journals, horizonGoals]);
 
   const getWeekRange = () => {
     const end = new Date();
@@ -86,11 +84,11 @@ export function AnalyticsTab({
     const totalLogsCount = weeklyLogs.length;
     const habitCompletionRate = totalLogsCount > 0 ? Math.round((completedHabitsCount / totalLogsCount) * 100) : 0;
 
-    // 4. Learning Items worked on
-    const activeLearning = learningItems.filter(l => {
-      if (!l.updatedAt) return false;
-      const updatedDate = new Date(l.updatedAt);
-      return updatedDate >= sevenDaysAgo && updatedDate <= now;
+    // 4. Horizon Goals completed recently
+    const activeHorizon = horizonGoals.filter(g => {
+      if (g.status !== "DONE") return false;
+      const compDate = new Date(g.updatedAt || g.createdAt || new Date());
+      return compDate >= sevenDaysAgo && compDate <= now;
     });
 
     return {
@@ -99,7 +97,7 @@ export function AnalyticsTab({
       gratitude: gratitudeList.length > 0 ? gratitudeList : ["My health, career journey, and personal growth"],
       completedTasksCount,
       habitCompletionRate,
-      activeLearning: activeLearning.map(l => l.title),
+      activeHorizon: activeHorizon.map(g => g.title),
       weekRange: getWeekRange()
     };
   };
@@ -111,7 +109,7 @@ Date Range: ${stats.weekRange}
 Key Metrics:
 - Tasks Completed: ${stats.completedTasksCount}
 - Habit Completion Rate: ${stats.habitCompletionRate}%
-- Active Learning: ${stats.activeLearning.length > 0 ? stats.activeLearning.join(", ") : "None"}
+- Horizon Targets Completed: ${stats.activeHorizon.length > 0 ? stats.activeHorizon.join(", ") : "None"}
 
 Biggest Wins:
 ${stats.wins.map(w => `- ${w}`).join("\n")}
@@ -191,26 +189,32 @@ Powered by LifeOS`;
             <h3 style={{ margin: 0, fontSize: "18px" }}>Weekly Growth Trend</h3>
             
             {/* Simple CSS Bar Chart */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", height: "180px", padding: "10px 20px 0", borderBottom: "2px solid var(--surface-border)" }}>
-              {data.growthTrends.map((t, idx) => (
-                <div key={idx} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", flexGrow: 1 }}>
-                  <span style={{ fontSize: "11px", fontWeight: "700" }}>{t.score}%</span>
-                  <div
-                    style={{
-                      width: "36px",
-                      height: `${t.score * 1.3}px`,
-                      background: "linear-gradient(180deg, var(--primary), var(--accent))",
-                      borderRadius: "6px 6px 0 0",
-                      transition: "height 0.4s ease-out"
-                    }}
-                  />
-                  <span style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "-28px" }}>{t.weekLabel}</span>
-                </div>
-              ))}
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", height: "160px", padding: "10px 20px 0", borderBottom: "2px solid var(--surface-border)" }}>
+                {data.growthTrends.map((t, idx) => (
+                  <div key={idx} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", flexGrow: 1 }}>
+                    <span style={{ fontSize: "11px", fontWeight: "700" }}>{t.score}%</span>
+                    <div
+                      style={{
+                        width: "36px",
+                        height: `${Math.max(4, t.score * 1.2)}px`,
+                        background: "linear-gradient(180deg, var(--primary), var(--accent))",
+                        borderRadius: "6px 6px 0 0",
+                        transition: "height 0.4s ease-out"
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+              
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "0 20px" }}>
+                {data.growthTrends.map((t, idx) => (
+                  <span key={idx} style={{ flexGrow: 1, textAlign: "center", fontSize: "11px", color: "var(--text-muted)", fontWeight: "600" }}>
+                    {t.weekLabel}
+                  </span>
+                ))}
+              </div>
             </div>
-            
-            {/* Added spacer to account for the negative margin of labels */}
-            <div style={{ height: "10px" }}></div>
           </div>
         </div>
       )}

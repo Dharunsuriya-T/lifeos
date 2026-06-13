@@ -36,6 +36,39 @@ export function NotesTab({ notes, goals, tasks, saveNote, deleteNote }: Props) {
 
   const categories = ["All", "Unclassified", "General", "Learning", "Work", "Ideas", "Reflections", ...customCategories];
 
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategoryInput, setNewCategoryInput] = useState("");
+  const [categoryError, setCategoryError] = useState("");
+  const [isAddingNew, setIsAddingNew] = useState(false);
+
+  const handleSaveCategory = () => {
+    const trimmed = newCategoryInput.trim();
+    if (!trimmed) {
+      setCategoryError("Name cannot be empty");
+      return;
+    }
+    if (trimmed.length > 20) {
+      setCategoryError("Max 20 characters");
+      return;
+    }
+    if (trimmed.toLowerCase() === "all" || trimmed.toLowerCase() === "unclassified" || trimmed.toLowerCase() === "general") {
+      setCategoryError("Reserved category name");
+      return;
+    }
+    if (categories.some(c => c.toLowerCase() === trimmed.toLowerCase())) {
+      setCategoryError("Category already exists");
+      return;
+    }
+
+    const updated = [...customCategories, trimmed];
+    setCustomCategories(updated);
+    localStorage.setItem("lifeos_custom_categories", JSON.stringify(updated));
+    setCategory(trimmed);
+    setNewCategoryInput("");
+    setIsAddingCategory(false);
+    setCategoryError("");
+  };
+
   // Filter notes
   const filteredNotes = notes.filter((n) => {
     const matchesSearch =
@@ -49,13 +82,14 @@ export function NotesTab({ notes, goals, tasks, saveNote, deleteNote }: Props) {
   const activeNote = notes.find((n) => n.id === selectedNoteId);
 
   useEffect(() => {
-    if (filteredNotes.length > 0 && !selectedNoteId) {
+    if (filteredNotes.length > 0 && !selectedNoteId && !isAddingNew) {
       setSelectedNoteId(filteredNotes[0].id);
     }
-  }, [filteredNotes, selectedNoteId]);
+  }, [filteredNotes, selectedNoteId, isAddingNew]);
 
   const handleStartAdd = () => {
     setSelectedNoteId(null);
+    setIsAddingNew(true);
     setTitle("New Note");
     setContent("");
     setCategory("Unclassified");
@@ -96,6 +130,7 @@ export function NotesTab({ notes, goals, tasks, saveNote, deleteNote }: Props) {
     saveNote(noteData);
     setSelectedNoteId(noteId);
     setIsEditing(false);
+    setIsAddingNew(false);
   };
 
   return (
@@ -103,8 +138,8 @@ export function NotesTab({ notes, goals, tasks, saveNote, deleteNote }: Props) {
       {/* Header */}
       <div className="header-row">
         <div className="title-section">
-          <h1>Knowledge System (Notes)</h1>
-          <p>Build usable knowledge, document lessons learned, and link notes directly to your projects and roadmaps.</p>
+          <h1>Notes</h1>
+          <p>Capture ideas, write freeform thoughts, draft documents, and link them to tasks or roadmaps.</p>
         </div>
         <button className="btn btn-primary" onClick={handleStartAdd}>
           + New Note
@@ -158,6 +193,7 @@ export function NotesTab({ notes, goals, tasks, saveNote, deleteNote }: Props) {
                   onClick={() => {
                     setSelectedNoteId(note.id);
                     setIsEditing(false);
+                    setIsAddingNew(false);
                   }}
                   style={{
                     border: "1px solid var(--surface-border)",
@@ -198,31 +234,68 @@ export function NotesTab({ notes, goals, tasks, saveNote, deleteNote }: Props) {
                   onChange={(e) => setTitle(e.target.value)}
                 />
                 <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                  <select className="select" style={{ width: "130px" }} value={category} onChange={(e) => setCategory(e.target.value)}>
-                    {categories.filter(c => c !== "All").map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                  <button
-                    className="btn btn-secondary"
-                    style={{ padding: "4px 8px", fontSize: "12px", height: "34px" }}
-                    onClick={() => {
-                      const newCat = prompt("Enter new custom category name:");
-                      if (newCat && newCat.trim()) {
-                        const trimmed = newCat.trim();
-                        if (!customCategories.includes(trimmed)) {
-                          const updated = [...customCategories, trimmed];
-                          setCustomCategories(updated);
-                          localStorage.setItem("lifeos_custom_categories", JSON.stringify(updated));
-                          setCategory(trimmed);
-                        } else {
-                          setCategory(trimmed);
-                        }
-                      }
-                    }}
-                  >
-                    + Custom
-                  </button>
+                  {!isAddingCategory ? (
+                    <>
+                      <select className="select" style={{ width: "130px" }} value={category} onChange={(e) => setCategory(e.target.value)}>
+                        {categories.filter(c => c !== "All").map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                      <button
+                        className="btn btn-secondary"
+                        style={{ padding: "4px 8px", fontSize: "12px", height: "34px" }}
+                        onClick={() => {
+                          setIsAddingCategory(true);
+                          setCategoryError("");
+                        }}
+                      >
+                        + Custom
+                      </button>
+                    </>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                      <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                        <input
+                          type="text"
+                          className="input"
+                          placeholder="New category..."
+                          style={{ width: "130px", padding: "6px 10px", fontSize: "13px", height: "34px" }}
+                          value={newCategoryInput}
+                          onChange={(e) => {
+                            setNewCategoryInput(e.target.value);
+                            setCategoryError("");
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSaveCategory();
+                          }}
+                          autoFocus
+                        />
+                        <button
+                          className="btn btn-primary"
+                          style={{ padding: "6px 10px", fontSize: "11px", height: "34px" }}
+                          onClick={handleSaveCategory}
+                        >
+                          Save
+                        </button>
+                        <button
+                          className="btn btn-secondary"
+                          style={{ padding: "6px 10px", fontSize: "11px", height: "34px", color: "var(--danger)", borderColor: "rgba(239, 68, 68, 0.2)" }}
+                          onClick={() => {
+                            setIsAddingCategory(false);
+                            setNewCategoryInput("");
+                            setCategoryError("");
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      {categoryError && (
+                        <span style={{ fontSize: "10px", color: "var(--danger)", fontWeight: "600", marginTop: "2px" }}>
+                          {categoryError}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -259,7 +332,18 @@ export function NotesTab({ notes, goals, tasks, saveNote, deleteNote }: Props) {
               </div>
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "12px" }}>
-                <button className="btn btn-secondary" onClick={() => setIsEditing(false)}>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setIsEditing(false);
+                    if (isAddingNew) {
+                      setIsAddingNew(false);
+                      if (filteredNotes.length > 0) {
+                        setSelectedNoteId(filteredNotes[0].id);
+                      }
+                    }
+                  }}
+                >
                   Cancel
                 </button>
                 <button className="btn btn-primary" onClick={handleSave}>
