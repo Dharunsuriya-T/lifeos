@@ -47,18 +47,17 @@ export function GoalWorkspace({
   const [selectedNode, setSelectedNode] = useState<RoadmapNode | null>(null);
   const [rescheduleNotification, setRescheduleNotification] = useState<string | null>(null);
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     try {
       const refreshToken = getRefreshToken();
       if (refreshToken) {
-        await logout(refreshToken);
+        logout(refreshToken).catch((err) => console.warn("Logout from workspace failed: ", err));
       }
     } catch (error) {
-      console.error("Logout from workspace failed: ", error);
-    } finally {
-      clearTokens();
-      navigate("/login");
+      console.error("Logout error: ", error);
     }
+    clearTokens();
+    navigate("/login");
   };
 
   // Folder resource states

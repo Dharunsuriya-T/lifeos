@@ -297,18 +297,17 @@ function DashboardPage() {
     setTheme(prev => (prev === "dark" ? "light" : "dark"));
   };
 
-  const logoutHandler = async () => {
+  const logoutHandler = () => {
     try {
       const refreshToken = getRefreshToken();
       if (refreshToken) {
-        await logout(refreshToken);
+        logout(refreshToken).catch((err) => console.warn("Logout request failed: ", err));
       }
     } catch (error) {
-      console.error("Logout request failed: ", error);
-    } finally {
-      clearTokens();
-      navigate("/login");
+      console.error("Logout error: ", error);
     }
+    clearTokens();
+    navigate("/login");
   };
 
   const getInitials = () => {

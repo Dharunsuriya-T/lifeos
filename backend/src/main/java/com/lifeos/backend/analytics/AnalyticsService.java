@@ -50,13 +50,14 @@ public class AnalyticsService {
 
         // 1. Calculate Habit Score (last 7 days compliance)
         List<Habit> habits = habitRepository.findByUser(user);
-        double habitScore = 100.0;
-        if (!habits.isEmpty()) {
+        double habitScore = 0.0;
+        boolean habitActive = !habits.isEmpty();
+        if (habitActive) {
             long totalPossibleLogs = habits.size() * 7L;
             long actualCompletions = 0;
             for (Habit habit : habits) {
                 actualCompletions += habitLogRepository.findByHabit(habit).stream()
-                        .filter(l -> l.isCompleted() && !l.getCompletedDate().isBefore(today.minusDays(6)))
+                        .filter(l -> l.isCompleted() && !l.getCompletedDate().isBefore(today.minusDays(6)) && !l.getCompletedDate().isAfter(today))
                         .count();
             }
             habitScore = ((double) actualCompletions / totalPossibleLogs) * 100;
@@ -64,32 +65,65 @@ public class AnalyticsService {
 
         // 2. Calculate Task Score
         List<Task> tasks = taskRepository.findByUser(user);
-        double taskScore = 100.0;
-        if (!tasks.isEmpty()) {
+        double taskScore = 0.0;
+        boolean taskActive = !tasks.isEmpty();
+        if (taskActive) {
             long completed = tasks.stream().filter(t -> t.getStatus() == TaskStatus.DONE).count();
             taskScore = ((double) completed / tasks.size()) * 100;
         }
 
         // 3. Calculate Journal Score (entries in last 7 days)
         List<Journal> journals = journalRepository.findByUser(user);
-        long journalCountLast7Days = journals.stream()
-                .filter(j -> !j.getEntryDate().isBefore(today.minusDays(6)))
-                .count();
-        double journalScore = (journalCountLast7Days / 7.0) * 100;
+        double journalScore = 0.0;
+        boolean journalActive = !journals.isEmpty();
+        long journalCountLast7Days = 0;
+        if (journalActive) {
+            journalCountLast7Days = journals.stream()
+                    .filter(j -> !j.getEntryDate().isBefore(today.minusDays(6)) && !j.getEntryDate().isAfter(today))
+                    .count();
+            journalScore = (journalCountLast7Days / 7.0) * 100;
+            if (journalScore > 100.0) {
+                journalScore = 100.0;
+            }
+        }
 
         // 4. Calculate Learning Score
         List<LearningItem> learningItems = learningItemRepository.findByUser(user);
-        double learningScore = 100.0;
-        if (!learningItems.isEmpty()) {
+        double learningScore = 0.0;
+        boolean learningActive = !learningItems.isEmpty();
+        if (learningActive) {
             learningScore = learningItems.stream()
                     .mapToInt(LearningItem::getProgressPercentage)
                     .average()
-                    .orElse(100.0);
+                    .orElse(0.0);
         }
 
-        // Composite Growth Score
-        int growthScore = (int) ((habitScore * 0.4) + (taskScore * 0.25) + (journalScore * 0.15) + (learningScore * 0.20));
-        growthScore = Math.max(0, Math.min(100, growthScore));
+        // Composite Growth Score (Dynamic Weights)
+        double sumWeights = 0.0;
+        double weightedScoreSum = 0.0;
+
+        if (habitActive) {
+            sumWeights += 0.40;
+            weightedScoreSum += habitScore * 0.40;
+        }
+        if (taskActive) {
+            sumWeights += 0.25;
+            weightedScoreSum += taskScore * 0.25;
+        }
+        if (journalActive) {
+            sumWeights += 0.15;
+            weightedScoreSum += journalScore * 0.15;
+        }
+        if (learningActive) {
+            sumWeights += 0.20;
+            weightedScoreSum += learningScore * 0.20;
+        }
+
+        int growthScore = 0;
+        if (sumWeights > 0.0) {
+            growthScore = (int) Math.round(weightedScoreSum / sumWeights);
+            growthScore = Math.max(0, Math.min(100, growthScore));
+        }
 
         // 5. Goal Completion Estimates
         Map<String, Integer> goalCompletionEstimates = new HashMap<>();
@@ -136,8 +170,8 @@ public class AnalyticsService {
         for (int i = 5; i >= 0; i--) {
             String label = "Wk -" + i;
             if (i == 0) label = "This Wk";
-            // Simulate weekly variance based on overall score
-            int weeklyScore = Math.max(20, Math.min(100, growthScore - (i * 4) + new Random().nextInt(10)));
+            LocalDate dateAtWk = today.minusDays(i * 7L);
+            int weeklyScore = calculateGrowthScoreForDate(habits, tasks, journals, learningItems, dateAtWk);
             trends.add(new AnalyticsResponse.TrendDto(label, weeklyScore));
         }
 
@@ -145,7 +179,7 @@ public class AnalyticsService {
         List<String> insights = new ArrayList<>();
         insights.add("Your composite Growth Score is " + growthScore + "% this week. You are making steady progress.");
 
-        if (!habits.isEmpty()) {
+        if (habitActive) {
             if (habitScore > 80) {
                 insights.add("Excellent habit consistency! You completed " + (int) habitScore + "% of your habits this week.");
             } else {
@@ -160,7 +194,7 @@ public class AnalyticsService {
         }
 
         // Mood/Energy correlations
-        if (!journals.isEmpty()) {
+        if (journalActive) {
             double avgMood = journals.stream()
                     .mapToDouble(j -> {
                         try {
@@ -178,5 +212,105 @@ public class AnalyticsService {
                 trends,
                 insights
         );
+    }
+
+    private int calculateGrowthScoreForDate(
+            List<Habit> habits,
+            List<Task> tasks,
+            List<Journal> journals,
+            List<LearningItem> learningItems,
+            LocalDate date
+    ) {
+        // 1. Habit Score
+        List<Habit> activeHabits = habits.stream()
+                .filter(h -> h.getCreatedAt() == null || !h.getCreatedAt().toLocalDate().isAfter(date))
+                .collect(Collectors.toList());
+        double habitScore = 0.0;
+        boolean habitActive = !activeHabits.isEmpty();
+        if (habitActive) {
+            long totalPossibleLogs = activeHabits.size() * 7L;
+            long actualCompletions = 0;
+            for (Habit habit : activeHabits) {
+                actualCompletions += habitLogRepository.findByHabit(habit).stream()
+                        .filter(l -> l.isCompleted() && !l.getCompletedDate().isBefore(date.minusDays(6)) && !l.getCompletedDate().isAfter(date))
+                        .count();
+            }
+            habitScore = ((double) actualCompletions / totalPossibleLogs) * 100;
+        }
+
+        // 2. Task Score
+        List<Task> activeTasks = tasks.stream()
+                .filter(t -> t.getCreatedAt() == null || !t.getCreatedAt().toLocalDate().isAfter(date))
+                .collect(Collectors.toList());
+        double taskScore = 0.0;
+        boolean taskActive = !activeTasks.isEmpty();
+        if (taskActive) {
+            long completed = activeTasks.stream()
+                    .filter(t -> t.getStatus() == TaskStatus.DONE && (t.getUpdatedAt() == null || !t.getUpdatedAt().toLocalDate().isAfter(date)))
+                    .count();
+            taskScore = ((double) completed / activeTasks.size()) * 100;
+        }
+
+        // 3. Journal Score
+        List<Journal> activeJournals = journals.stream()
+                .filter(j -> j.getCreatedAt() == null || !j.getCreatedAt().toLocalDate().isAfter(date))
+                .collect(Collectors.toList());
+        double journalScore = 0.0;
+        boolean journalActive = !activeJournals.isEmpty();
+        if (journalActive) {
+            long journalCountLast7Days = activeJournals.stream()
+                    .filter(j -> !j.getEntryDate().isBefore(date.minusDays(6)) && !j.getEntryDate().isAfter(date))
+                    .count();
+            journalScore = (journalCountLast7Days / 7.0) * 100;
+            if (journalScore > 100.0) {
+                journalScore = 100.0;
+            }
+        }
+
+        // 4. Learning Score
+        List<LearningItem> activeLearning = learningItems.stream()
+                .filter(item -> item.getCreatedAt() == null || !item.getCreatedAt().toLocalDate().isAfter(date))
+                .collect(Collectors.toList());
+        double learningScore = 0.0;
+        boolean learningActive = !activeLearning.isEmpty();
+        if (learningActive) {
+            learningScore = activeLearning.stream()
+                    .mapToInt(item -> {
+                        if (item.getUpdatedAt() != null && item.getUpdatedAt().toLocalDate().isAfter(date)) {
+                            return 0;
+                        }
+                        return item.getProgressPercentage();
+                    })
+                    .average()
+                    .orElse(0.0);
+        }
+
+        // Calculate dynamic weights
+        double sumWeights = 0.0;
+        double weightedScoreSum = 0.0;
+
+        if (habitActive) {
+            sumWeights += 0.40;
+            weightedScoreSum += habitScore * 0.40;
+        }
+        if (taskActive) {
+            sumWeights += 0.25;
+            weightedScoreSum += taskScore * 0.25;
+        }
+        if (journalActive) {
+            sumWeights += 0.15;
+            weightedScoreSum += journalScore * 0.15;
+        }
+        if (learningActive) {
+            sumWeights += 0.20;
+            weightedScoreSum += learningScore * 0.20;
+        }
+
+        if (sumWeights == 0.0) {
+            return 0;
+        }
+
+        int score = (int) Math.round(weightedScoreSum / sumWeights);
+        return Math.max(0, Math.min(100, score));
     }
 }

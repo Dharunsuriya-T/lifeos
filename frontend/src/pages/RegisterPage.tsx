@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate, Link } from "react-router-dom";
 import { register as registerUser, googleLogin } from "../api/authApi";
@@ -10,10 +10,12 @@ function RegisterPage() {
   const navigate = useNavigate();
   const [errorVal, setErrorVal] = useState<string | null>(null);
   const [successVal, setSuccessVal] = useState<string | null>(null);
+  const [isVerifyingGoogle, setIsVerifyingGoogle] = useState(false);
 
   const handleGoogleSuccess = async (credentialResponse: any) => {
     setErrorVal(null);
     setSuccessVal(null);
+    setIsVerifyingGoogle(true);
     try {
       const response = await googleLogin(credentialResponse.credential);
       saveTokens(response.accessToken, response.refreshToken);
@@ -24,6 +26,8 @@ function RegisterPage() {
     } catch (error) {
       console.error(error);
       setErrorVal("Google registration failed. Verify developer console.");
+    } finally {
+      setIsVerifyingGoogle(false);
     }
   };
 
@@ -32,6 +36,20 @@ function RegisterPage() {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<RegisterFormData>();
+
+  const [showColdStartNotice, setShowColdStartNotice] = useState(false);
+
+  useEffect(() => {
+    let timer: any;
+    if (isSubmitting || isVerifyingGoogle) {
+      timer = setTimeout(() => {
+        setShowColdStartNotice(true);
+      }, 3000);
+    } else {
+      setShowColdStartNotice(false);
+    }
+    return () => clearTimeout(timer);
+  }, [isSubmitting, isVerifyingGoogle]);
 
   const onSubmit = async (data: RegisterFormData) => {
     setErrorVal(null);
@@ -115,6 +133,29 @@ function RegisterPage() {
               <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
             <span>{errorVal}</span>
+          </div>
+        )}
+
+        {showColdStartNotice && (
+          <div style={{
+            padding: "10px 14px",
+            backgroundColor: "rgba(245, 158, 11, 0.08)",
+            border: "1px solid rgba(245, 158, 11, 0.2)",
+            borderRadius: "var(--border-radius-sm)",
+            color: "#fbbf24",
+            fontSize: "12px",
+            fontWeight: "500",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            lineHeight: "1.4"
+          }}>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            <span>Connecting... The server is waking up from cold-start sleep. This can take up to 50 seconds. Please keep this screen open.</span>
           </div>
         )}
 
@@ -218,7 +259,7 @@ function RegisterPage() {
           <button
             type="submit"
             className="btn btn-primary"
-            disabled={isSubmitting}
+            disabled={isSubmitting || isVerifyingGoogle}
             style={{
               padding: "12px",
               fontSize: "14px",
@@ -228,7 +269,7 @@ function RegisterPage() {
               marginTop: "8px",
             }}
           >
-            {isSubmitting ? "Registering..." : "Create Account"}
+            {isSubmitting ? "Registering..." : isVerifyingGoogle ? "Verifying..." : "Create Account"}
           </button>
         </form>
 

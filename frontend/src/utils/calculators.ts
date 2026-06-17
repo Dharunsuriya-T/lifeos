@@ -299,37 +299,73 @@ export function calculateAnalyticsData(
     const startDay = decrementDateStr(endDay, 6); // 7-day window
 
     // 1. Habit score
-    let habitScore = 100;
-    if (habits.length > 0) {
-      const totalPossible = habits.length * 7;
-      const actualCompletions = habits.reduce((sum, h) => {
+    let habitScore = 0;
+    let habitActive = false;
+    const activeHabits = habits.filter(h => !h.createdAt || h.createdAt.split('T')[0] <= endDay);
+    if (activeHabits.length > 0) {
+      habitActive = true;
+      const totalPossible = activeHabits.length * 7;
+      const actualCompletions = activeHabits.reduce((sum, h) => {
         return sum + habitLogs.filter(l => l.habitId === h.id && l.isCompleted && isDateInRange(l.completedDate, startDay, endDay)).length;
       }, 0);
       habitScore = (actualCompletions / totalPossible) * 100;
     }
 
     // 2. Task score
-    let taskScore = 100;
+    let taskScore = 0;
+    let taskActive = false;
     const activeTasks = tasks.filter(t => !t.createdAt || t.createdAt.split('T')[0] <= endDay);
     if (activeTasks.length > 0) {
-      const completed = activeTasks.filter(t => t.status === 'DONE' && (t.updatedAt || t.createdAt) && (t.updatedAt || t.createdAt)!.split('T')[0] <= endDay).length;
+      taskActive = true;
+      const completed = activeTasks.filter(t => t.status === 'DONE' && (!t.updatedAt || t.updatedAt.split('T')[0] <= endDay)).length;
       taskScore = (completed / activeTasks.length) * 100;
     }
 
     // 3. Journal score
-    const journalsCount = journals.filter(j => isDateInRange(j.entryDate, startDay, endDay)).length;
-    const journalScore = Math.min(100, (journalsCount / 7) * 100);
-
-    // 4. Horizon goals score
-    let horizonScore = 100;
-    if (horizonGoals.length > 0) {
-      const completed = horizonGoals.filter(g => g.status === 'DONE').length;
-      horizonScore = (completed / horizonGoals.length) * 100;
+    let journalScore = 0;
+    let journalActive = false;
+    const activeJournals = journals.filter(j => !j.createdAt || j.createdAt.split('T')[0] <= endDay);
+    if (activeJournals.length > 0) {
+      journalActive = true;
+      const journalsCount = activeJournals.filter(j => isDateInRange(j.entryDate, startDay, endDay)).length;
+      journalScore = Math.min(100, (journalsCount / 7) * 100);
     }
 
-    return Math.max(0, Math.min(100, Math.round(
-      (habitScore * 0.4) + (taskScore * 0.25) + (journalScore * 0.15) + (horizonScore * 0.20)
-    )));
+    // 4. Horizon goals score
+    let horizonScore = 0;
+    let horizonActive = false;
+    const activeHorizon = horizonGoals.filter(g => !g.createdAt || g.createdAt.split('T')[0] <= endDay);
+    if (activeHorizon.length > 0) {
+      horizonActive = true;
+      const completed = activeHorizon.filter(g => g.status === 'DONE' && (!g.updatedAt || g.updatedAt.split('T')[0] <= endDay)).length;
+      horizonScore = (completed / activeHorizon.length) * 100;
+    }
+
+    let sumWeights = 0;
+    let weightedScoreSum = 0;
+
+    if (habitActive) {
+      sumWeights += 0.40;
+      weightedScoreSum += habitScore * 0.40;
+    }
+    if (taskActive) {
+      sumWeights += 0.25;
+      weightedScoreSum += taskScore * 0.25;
+    }
+    if (journalActive) {
+      sumWeights += 0.15;
+      weightedScoreSum += journalScore * 0.15;
+    }
+    if (horizonActive) {
+      sumWeights += 0.20;
+      weightedScoreSum += horizonScore * 0.20;
+    }
+
+    if (sumWeights === 0) {
+      return 0;
+    }
+
+    return Math.max(0, Math.min(100, Math.round(weightedScoreSum / sumWeights)));
   };
 
   const growthScore = getGrowthScoreForPeriod(todayStr);

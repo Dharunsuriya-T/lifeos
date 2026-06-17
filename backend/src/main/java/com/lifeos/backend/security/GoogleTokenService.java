@@ -14,24 +14,22 @@ import java.util.Collections;
 @Service
 public class GoogleTokenService {
 
-    @Value("${google.client-id}")
-    private String clientId;
+    private final GoogleIdTokenVerifier verifier;
+
+    public GoogleTokenService(
+            @Value("${google.client-id}") String clientId
+    ) {
+        this.verifier = new GoogleIdTokenVerifier.Builder(
+                new NetHttpTransport(),
+                GsonFactory.getDefaultInstance()
+        )
+                .setAudience(Collections.singletonList(clientId))
+                .build();
+    }
 
     public GoogleIdToken.Payload verify(
             String idTokenString
     ) throws GeneralSecurityException, IOException {
-
-        GoogleIdTokenVerifier verifier =
-                new GoogleIdTokenVerifier.Builder(
-                        new NetHttpTransport(),
-                        GsonFactory.getDefaultInstance()
-                )
-                        .setAudience(
-                                Collections.singletonList(
-                                        clientId
-                                )
-                        )
-                        .build();
 
         GoogleIdToken idToken =
                 verifier.verify(idTokenString);
