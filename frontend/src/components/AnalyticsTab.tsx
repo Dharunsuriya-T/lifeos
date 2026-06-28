@@ -1,6 +1,7 @@
-import { useState, useMemo } from "react";
-import type { Goal, Roadmap, RoadmapNode, Task, Project, ProjectMilestone, Habit, HabitLog, Journal, HorizonGoal } from "../types/lifeOs";
+import { useState, useMemo, useEffect } from "react";
+import type { Goal, Roadmap, RoadmapNode, Task, Project, ProjectMilestone, Habit, HabitLog, Journal, HorizonGoal, AnalyticsData } from "../types/lifeOs";
 import { calculateAnalyticsData } from "../utils/calculators";
+import { fetchAnalytics } from "../api/lifeOsApi";
 
 interface Props {
   goals: Goal[];
@@ -29,8 +30,25 @@ export function AnalyticsTab({
 }: Props) {
   const [showWrapped, setShowWrapped] = useState(false);
   const [reportCopied, setReportCopied] = useState(false);
+  const [backendData, setBackendData] = useState<AnalyticsData | null>(null);
 
-  const data = useMemo(() => {
+  useEffect(() => {
+    const loadBackendAnalytics = async () => {
+      const accessToken = localStorage.getItem("lifeos_access_token");
+      if (!accessToken) return;
+      try {
+        const res = await fetchAnalytics();
+        setBackendData(res);
+      } catch (e) {
+        console.error("Failed to load server analytics, falling back to local calculation:", e);
+        setBackendData(null);
+      }
+    };
+
+    loadBackendAnalytics();
+  }, [goals, roadmaps, roadmapNodes, tasks, projects, projectMilestones, habits, habitLogs, journals, horizonGoals]);
+
+  const localData = useMemo(() => {
     return calculateAnalyticsData(
       goals,
       roadmaps,
@@ -44,6 +62,8 @@ export function AnalyticsTab({
       horizonGoals
     );
   }, [goals, roadmaps, roadmapNodes, tasks, projects, projectMilestones, habits, habitLogs, journals, horizonGoals]);
+
+  const data = backendData || localData;
 
   const getWeekRange = () => {
     const end = new Date();

@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import type { Journal } from "../types/lifeOs";
+import { useFeedback } from "../hooks/useFeedback";
+import { getLocalDateStr, isValidDateStr } from "../utils/calculators";
 
 interface Props {
   journals: Journal[];
@@ -8,11 +10,12 @@ interface Props {
 }
 
 export function JournalTab({ journals, saveJournal, deleteJournal }: Props) {
+  const { showToast } = useFeedback();
   const [selectedJournalId, setSelectedJournalId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
 
   // Form states
-  const [entryDate, setEntryDate] = useState(new Date().toISOString().split("T")[0]);
+  const [entryDate, setEntryDate] = useState(getLocalDateStr());
   const [wins, setWins] = useState("");
   const [challenges, setChallenges] = useState("");
   const [lessonsLearned, setLessonsLearned] = useState("");
@@ -31,7 +34,7 @@ export function JournalTab({ journals, saveJournal, deleteJournal }: Props) {
   }, [sortedJournals, selectedJournalId, isAdding]);
 
   const handleStartAdd = () => {
-    setEntryDate(new Date().toISOString().split("T")[0]);
+    setEntryDate(getLocalDateStr());
     setWins("");
     setChallenges("");
     setLessonsLearned("");
@@ -43,6 +46,17 @@ export function JournalTab({ journals, saveJournal, deleteJournal }: Props) {
 
   const handleSave = () => {
     if (!entryDate) return;
+
+    if (!isValidDateStr(entryDate)) {
+      showToast("Please enter a valid date with a 4-digit year.", "error");
+      return;
+    }
+
+    const todayStr = getLocalDateStr();
+    if (entryDate > todayStr) {
+      showToast("Cannot write a journal entry for a future date.", "error");
+      return;
+    }
 
     // Check if entry date already has a journal
     const existing = journals.find((j) => j.entryDate === entryDate);
@@ -137,6 +151,7 @@ export function JournalTab({ journals, saveJournal, deleteJournal }: Props) {
                   className="input"
                   style={{ width: "160px" }}
                   value={entryDate}
+                  max={getLocalDateStr()}
                   onChange={(e) => setEntryDate(e.target.value)}
                 />
               </div>

@@ -26,7 +26,7 @@ export default function App() {
   if (sync.isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#a855f7" />
+        <ActivityIndicator size="large" color="#6366f1" />
       </View>
     );
   }
@@ -42,7 +42,7 @@ export default function App() {
             paddingBottom: 8,
             paddingTop: 8,
           },
-          tabBarActiveTintColor: '#a855f7',
+          tabBarActiveTintColor: '#6366f1',
           tabBarInactiveTintColor: '#94a3b8',
           headerShown: false,
           tabBarIcon: ({ color, size }) => {

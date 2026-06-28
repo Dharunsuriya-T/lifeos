@@ -67,49 +67,11 @@ function RegisterPage() {
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "linear-gradient(135deg, #090d16 0%, #111827 100%)",
-        color: "#f3f4f6",
-        padding: "20px",
-        fontFamily: "var(--font-sans)",
-      }}
-    >
-      <div
-        className="card"
-        style={{
-          width: "100%",
-          maxWidth: "420px",
-          padding: "40px 32px",
-          backgroundColor: "rgba(17, 24, 39, 0.7)",
-          backdropFilter: "blur(16px)",
-          borderRadius: "var(--border-radius-md)",
-          border: "1px solid rgba(255, 255, 255, 0.08)",
-          boxShadow: "0 20px 40px rgba(0, 0, 0, 0.4)",
-          display: "flex",
-          flexDirection: "column",
-          gap: "24px",
-        }}
-      >
-        <div style={{ textAlign: "center" }}>
-          <h1
-            style={{
-              fontSize: "32px",
-              fontWeight: "800",
-              fontFamily: "var(--font-display)",
-              background: "linear-gradient(135deg, #a78bfa 0%, #6366f1 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              margin: "0 0 8px",
-            }}
-          >
-            Create Account
-          </h1>
-          <p style={{ color: "var(--text-muted)", fontSize: "14px", margin: 0 }}>
+    <div className="auth-container">
+      <div className="auth-card">
+        <div>
+          <h1 className="auth-title">Create Account</h1>
+          <p style={{ color: "var(--text-muted)", fontSize: "14px", margin: 0, textAlign: "center" }}>
             Join LifeOS to track goals and build structured roadmaps
           </p>
         </div>
@@ -186,14 +148,8 @@ function RegisterPage() {
               <label style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-muted)" }}>First Name</label>
               <input
                 type="text"
-                className="input"
+                className="input auth-input"
                 placeholder="John"
-                style={{
-                  backgroundColor: "rgba(255, 255, 255, 0.03)",
-                  border: "1px solid rgba(255, 255, 255, 0.12)",
-                  color: "#f3f4f6",
-                  padding: "10px 14px",
-                }}
                 {...register("firstName", { required: true })}
               />
               {errors.firstName && (
@@ -205,14 +161,8 @@ function RegisterPage() {
               <label style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-muted)" }}>Last Name</label>
               <input
                 type="text"
-                className="input"
+                className="input auth-input"
                 placeholder="Doe"
-                style={{
-                  backgroundColor: "rgba(255, 255, 255, 0.03)",
-                  border: "1px solid rgba(255, 255, 255, 0.12)",
-                  color: "#f3f4f6",
-                  padding: "10px 14px",
-                }}
                 {...register("lastName")}
               />
             </div>
@@ -222,14 +172,8 @@ function RegisterPage() {
             <label style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-muted)" }}>Email Address</label>
             <input
               type="email"
-              className="input"
+              className="input auth-input"
               placeholder="john@example.com"
-              style={{
-                backgroundColor: "rgba(255, 255, 255, 0.03)",
-                border: "1px solid rgba(255, 255, 255, 0.12)",
-                color: "#f3f4f6",
-                padding: "10px 14px",
-              }}
               {...register("email", { required: true })}
             />
             {errors.email && (
@@ -241,14 +185,8 @@ function RegisterPage() {
             <label style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-muted)" }}>Password</label>
             <input
               type="password"
-              className="input"
+              className="input auth-input"
               placeholder="••••••••"
-              style={{
-                backgroundColor: "rgba(255, 255, 255, 0.03)",
-                border: "1px solid rgba(255, 255, 255, 0.12)",
-                color: "#f3f4f6",
-                padding: "10px 14px",
-              }}
               {...register("password", { required: true })}
             />
             {errors.password && (
@@ -264,7 +202,6 @@ function RegisterPage() {
               padding: "12px",
               fontSize: "14px",
               fontWeight: "600",
-              background: "linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)",
               border: "none",
               marginTop: "8px",
             }}

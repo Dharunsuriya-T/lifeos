@@ -1,9 +1,8 @@
 import { useState } from "react";
 import type { Goal, Roadmap, RoadmapNode, Task, Project, ProjectMilestone, Habit, Note } from "../types/lifeOs";
-
-
-import { calculateGoalProgress } from "../utils/calculators";
+import { calculateGoalProgress, getLocalDateStr, isValidDateStr } from "../utils/calculators";
 import { GoalWorkspace } from "./GoalWorkspace";
+import { useFeedback } from "../hooks/useFeedback";
 
 interface Props {
   goals: Goal[];
@@ -76,6 +75,7 @@ export function GoalsTab({
   saveHabit,
   saveNote,
 }: Props) {
+  const { showToast } = useFeedback();
   const [showModal, setShowModal] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
 
@@ -121,6 +121,16 @@ export function GoalsTab({
   const handleSave = () => {
     if (!title.trim()) return;
 
+    if (targetDate && !isValidDateStr(targetDate)) {
+      showToast("Please enter a valid target date with a 4-digit year.", "error");
+      return;
+    }
+
+    const todayStr = getLocalDateStr();
+    if (targetDate && targetDate < todayStr) {
+      showToast("Warning: Target deadline is set in the past.", "info");
+    }
+
     const goalData: Goal = {
       id: editingGoal?.id || crypto.randomUUID(),
       title,
@@ -155,11 +165,18 @@ export function GoalsTab({
 
       {/* Goals Grid */}
       {goals.length === 0 ? (
-        <div className="card" style={{ padding: "80px 0", textAlign: "center", color: "var(--text-muted)" }}>
-          <h3 style={{ marginTop: "16px" }}>No goals defined yet</h3>
-          <p style={{ margin: "8px 0 20px" }}>Create your first transformation goal to begin your personal growth journey.</p>
-          <button className="btn btn-primary" onClick={handleOpenAdd}>
-            Create Goal
+        <div className="empty-state-card" style={{ padding: "64px 24px" }}>
+          <div className="empty-state-icon">
+            <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <circle cx="12" cy="12" r="6" />
+              <circle cx="12" cy="12" r="2" />
+            </svg>
+          </div>
+          <p className="empty-state-title">No Goals Defined Yet</p>
+          <p className="empty-state-desc">Create your first transformation goal to begin mapping out your personal growth journey.</p>
+          <button className="btn btn-primary" style={{ marginTop: "8px" }} onClick={handleOpenAdd}>
+            + Create First Goal
           </button>
         </div>
       ) : (

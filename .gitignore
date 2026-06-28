@@ -26,3 +26,12 @@ dist/
 
 # VS Code
 .vscode/
+
+/lifeos_full_analysis.md
+lifeos_full_analysis.md
+walkthrough.md
+task.md
+implementation_plan.md
+analysis_results.md
+research_notes.md
+experiment_results.md

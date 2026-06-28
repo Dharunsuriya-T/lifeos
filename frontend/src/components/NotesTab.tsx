@@ -1,5 +1,27 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import type { Note, Goal, Task, Project, RoadmapNode } from "../types/lifeOs";
+
+const exportToDoc = (title: string, htmlContent: string) => {
+  const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' " +
+        "xmlns:w='urn:schemas-microsoft-com:office:word' " +
+        "xmlns='http://www.w3.org/TR/REC-html40'>" +
+        "<head><title>Document</title><meta charset='utf-8'></head><body>";
+  const footer = "</body></html>";
+  const sourceHTML = header + htmlContent + footer;
+  
+  const fileBlob = new Blob(['\ufeff' + sourceHTML], {
+    type: 'application/msword'
+  });
+  
+  const url = URL.createObjectURL(fileBlob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${title || 'document'}.doc`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
 
 interface Props {
   notes: Note[];
@@ -34,12 +56,59 @@ export function NotesTab({ notes, goals, tasks, saveNote, deleteNote }: Props) {
     }
   });
 
-  const categories = ["All", "Unclassified", "General", "Learning", "Work", "Ideas", "Reflections", ...customCategories];
+  const categories = useMemo(() => {
+    const defaultCats = ["All", "Unclassified", "General", "Learning", "Work", "Ideas", "Reflections"];
+    const noteCats = notes.map((n) => n.category).filter((c): c is string => !!c && c.trim() !== "");
+    const merged = Array.from(new Set([...defaultCats, ...customCategories, ...noteCats]));
+    return merged;
+  }, [notes, customCategories]);
 
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategoryInput, setNewCategoryInput] = useState("");
   const [categoryError, setCategoryError] = useState("");
   const [isAddingNew, setIsAddingNew] = useState(false);
+
+  const editorRef = useRef<HTMLDivElement>(null);
+  const [editorState, setEditorState] = useState({
+    bold: false,
+    italic: false,
+    underline: false,
+    h1: false,
+    h2: false,
+    p: false,
+    bullet: false
+  });
+
+  const updateEditorActiveStates = () => {
+    if (typeof document === 'undefined') return;
+    const blockVal = (document.queryCommandValue('formatBlock') || '').toString().toLowerCase();
+    setEditorState({
+      bold: document.queryCommandState('bold'),
+      italic: document.queryCommandState('italic'),
+      underline: document.queryCommandState('underline'),
+      h1: blockVal === 'h1' || blockVal === '<h1>',
+      h2: blockVal === 'h2' || blockVal === '<h2>',
+      p: blockVal === 'p' || blockVal === 'normal' || blockVal === '<p>',
+      bullet: document.queryCommandState('insertUnorderedList')
+    });
+  };
+
+  useEffect(() => {
+    if (isEditing && editorRef.current) {
+      editorRef.current.innerHTML = content;
+      updateEditorActiveStates();
+    } else {
+      setEditorState({
+        bold: false,
+        italic: false,
+        underline: false,
+        h1: false,
+        h2: false,
+        p: false,
+        bullet: false
+      });
+    }
+  }, [isEditing, selectedNoteId, isAddingNew]);
 
   const handleSaveCategory = () => {
     const trimmed = newCategoryInput.trim();
@@ -114,11 +183,13 @@ export function NotesTab({ notes, goals, tasks, saveNote, deleteNote }: Props) {
   const handleSave = () => {
     if (!title.trim()) return;
 
+    const finalContent = editorRef.current ? editorRef.current.innerHTML : content;
+    setContent(finalContent);
     const noteId = activeNote?.id || crypto.randomUUID();
     const noteData: Note = {
       id: noteId,
       title,
-      content,
+      content: finalContent,
       category: category || "Unclassified",
       goalId: goalId || undefined,
       taskId: taskId || undefined,
@@ -209,7 +280,7 @@ export function NotesTab({ notes, goals, tasks, saveNote, deleteNote }: Props) {
                     </div>
                     {note.content && (
                       <span style={{ fontSize: "11px", color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {note.content}
+                        {note.content.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ')}
                       </span>
                     )}
                   </div>
@@ -299,13 +370,199 @@ export function NotesTab({ notes, goals, tasks, saveNote, deleteNote }: Props) {
                 </div>
               </div>
 
-              <textarea
-                className="textarea"
-                rows={12}
-                placeholder="Write markdown content here..."
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                style={{ fontFamily: "var(--mono)", fontSize: "14px", lineHeight: "150%" }}
+              {/* Formatting Toolbar */}
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", backgroundColor: "var(--surface)", border: "1px solid var(--surface-border)", padding: "6px", borderRadius: "var(--border-radius-sm)", marginBottom: "4px" }}>
+                <button
+                  type="button"
+                  className="btn"
+                  style={{
+                    padding: "4px 8px",
+                    fontSize: "12px",
+                    minWidth: "32px",
+                    height: "30px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: editorState.bold ? "var(--primary)" : "var(--surface)",
+                    color: editorState.bold ? "var(--text-inverse)" : "var(--text)",
+                    border: `1px solid ${editorState.bold ? "var(--primary)" : "var(--surface-border)"}`,
+                  }}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    document.execCommand('bold', false);
+                    updateEditorActiveStates();
+                  }}
+                >
+                  <b>B</b>
+                </button>
+
+                <button
+                  type="button"
+                  className="btn"
+                  style={{
+                    padding: "4px 8px",
+                    fontSize: "12px",
+                    minWidth: "32px",
+                    height: "30px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: editorState.italic ? "var(--primary)" : "var(--surface)",
+                    color: editorState.italic ? "var(--text-inverse)" : "var(--text)",
+                    border: `1px solid ${editorState.italic ? "var(--primary)" : "var(--surface-border)"}`,
+                  }}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    document.execCommand('italic', false);
+                    updateEditorActiveStates();
+                  }}
+                >
+                  <i>I</i>
+                </button>
+
+                <button
+                  type="button"
+                  className="btn"
+                  style={{
+                    padding: "4px 8px",
+                    fontSize: "12px",
+                    minWidth: "32px",
+                    height: "30px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: editorState.underline ? "var(--primary)" : "var(--surface)",
+                    color: editorState.underline ? "var(--text-inverse)" : "var(--text)",
+                    border: `1px solid ${editorState.underline ? "var(--primary)" : "var(--surface-border)"}`,
+                  }}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    document.execCommand('underline', false);
+                    updateEditorActiveStates();
+                  }}
+                >
+                  <u>U</u>
+                </button>
+
+                <button
+                  type="button"
+                  className="btn"
+                  style={{
+                    padding: "4px 8px",
+                    fontSize: "12px",
+                    minWidth: "32px",
+                    height: "30px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: editorState.h1 ? "var(--primary)" : "var(--surface)",
+                    color: editorState.h1 ? "var(--text-inverse)" : "var(--text)",
+                    border: `1px solid ${editorState.h1 ? "var(--primary)" : "var(--surface-border)"}`,
+                  }}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    document.execCommand('formatBlock', false, '<h1>');
+                    updateEditorActiveStates();
+                  }}
+                >
+                  H1
+                </button>
+
+                <button
+                  type="button"
+                  className="btn"
+                  style={{
+                    padding: "4px 8px",
+                    fontSize: "12px",
+                    minWidth: "32px",
+                    height: "30px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: editorState.h2 ? "var(--primary)" : "var(--surface)",
+                    color: editorState.h2 ? "var(--text-inverse)" : "var(--text)",
+                    border: `1px solid ${editorState.h2 ? "var(--primary)" : "var(--surface-border)"}`,
+                  }}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    document.execCommand('formatBlock', false, '<h2>');
+                    updateEditorActiveStates();
+                  }}
+                >
+                  H2
+                </button>
+
+                <button
+                  type="button"
+                  className="btn"
+                  style={{
+                    padding: "4px 8px",
+                    fontSize: "12px",
+                    minWidth: "32px",
+                    height: "30px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: editorState.p ? "var(--primary)" : "var(--surface)",
+                    color: editorState.p ? "var(--text-inverse)" : "var(--text)",
+                    border: `1px solid ${editorState.p ? "var(--primary)" : "var(--surface-border)"}`,
+                  }}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    document.execCommand('formatBlock', false, '<p>');
+                    updateEditorActiveStates();
+                  }}
+                >
+                  Paragraph
+                </button>
+
+                <button
+                  type="button"
+                  className="btn"
+                  style={{
+                    padding: "4px 8px",
+                    fontSize: "12px",
+                    minWidth: "32px",
+                    height: "30px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: editorState.bullet ? "var(--primary)" : "var(--surface)",
+                    color: editorState.bullet ? "var(--text-inverse)" : "var(--text)",
+                    border: `1px solid ${editorState.bullet ? "var(--primary)" : "var(--surface-border)"}`,
+                  }}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    document.execCommand('insertUnorderedList', false);
+                    updateEditorActiveStates();
+                  }}
+                >
+                  • Bullet
+                </button>
+              </div>
+
+              {/* Content Editable Editor */}
+              <div
+                ref={editorRef}
+                contentEditable
+                className="input"
+                suppressContentEditableWarning={true}
+                onKeyUp={updateEditorActiveStates}
+                onMouseUp={updateEditorActiveStates}
+                onFocus={updateEditorActiveStates}
+                style={{
+                  minHeight: "250px",
+                  maxHeight: "450px",
+                  overflowY: "auto",
+                  padding: "16px",
+                  backgroundColor: "var(--bg)",
+                  border: "1px solid var(--surface-border)",
+                  borderRadius: "var(--border-radius-sm)",
+                  fontFamily: "var(--font-sans)",
+                  fontSize: "15px",
+                  lineHeight: "160%",
+                  outline: "none",
+                }}
               />
 
               {/* Connections config */}
@@ -361,6 +618,13 @@ export function NotesTab({ notes, goals, tasks, saveNote, deleteNote }: Props) {
                     <span className="tag">{activeNote.category}</span>
                   </div>
                   <div style={{ display: "flex", gap: "10px" }}>
+                    <button
+                      className="btn btn-secondary"
+                      style={{ display: "flex", alignItems: "center", gap: "6px" }}
+                      onClick={() => exportToDoc(activeNote.title, activeNote.content || "")}
+                    >
+                      📥 Export DOC
+                    </button>
                     <button className="btn btn-secondary" onClick={() => handleStartEdit(activeNote)}>
                       Edit
                     </button>
@@ -382,16 +646,14 @@ export function NotesTab({ notes, goals, tasks, saveNote, deleteNote }: Props) {
                   style={{
                     fontSize: "15px",
                     lineHeight: "160%",
-                    whiteSpace: "pre-wrap",
                     padding: "16px",
                     backgroundColor: "var(--bg)",
                     border: "1px solid var(--surface-border)",
                     borderRadius: "var(--border-radius-sm)",
                     flexGrow: 1,
                   }}
-                >
-                  {activeNote.content || <em style={{ color: "var(--text-muted)" }}>Empty note. Write some markdown content.</em>}
-                </div>
+                  dangerouslySetInnerHTML={{ __html: activeNote.content || '<em style="color: var(--text-muted)">Empty note. Write some rich text content.</em>' }}
+                />
 
                 {/* Connections footer */}
                 {(activeNote.goalId || activeNote.taskId) && (

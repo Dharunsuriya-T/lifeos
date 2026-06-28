@@ -16,4 +16,7 @@ public interface RoadmapNodeRepository extends JpaRepository<RoadmapNode, UUID> 
 
     @Query("SELECT rn FROM RoadmapNode rn JOIN rn.roadmap r WHERE r.user = :user AND rn.updatedAt > :timestamp")
     List<RoadmapNode> findByUserAndUpdatedAtAfter(@Param("user") User user, @Param("timestamp") LocalDateTime timestamp);
+
+    @Query("SELECT rn FROM RoadmapNode rn JOIN rn.roadmap r WHERE (r.user = :user OR r.isPublic = true) AND rn.updatedAt > :timestamp")
+    List<RoadmapNode> findByUserOrPublicAndUpdatedAtAfter(@Param("user") User user, @Param("timestamp") LocalDateTime timestamp);
 }

@@ -305,10 +305,10 @@ public class SyncService {
         List<GoalDto> dbGoals = goalRepository.findByUserAndUpdatedAtAfter(user, queryTime).stream()
                 .map(this::mapGoalToDto).collect(Collectors.toList());
 
-        List<RoadmapDto> dbRoadmaps = roadmapRepository.findByUserAndUpdatedAtAfter(user, queryTime).stream()
+        List<RoadmapDto> dbRoadmaps = roadmapRepository.findByUserOrPublicAndUpdatedAtAfter(user, queryTime).stream()
                 .map(this::mapRoadmapToDto).collect(Collectors.toList());
 
-        List<RoadmapNodeDto> dbNodes = roadmapNodeRepository.findByUserAndUpdatedAtAfter(user, queryTime).stream()
+        List<RoadmapNodeDto> dbNodes = roadmapNodeRepository.findByUserOrPublicAndUpdatedAtAfter(user, queryTime).stream()
                 .map(this::mapRoadmapNodeToDto).collect(Collectors.toList());
 
         List<ProjectDto> dbProjects = projectRepository.findByUserAndUpdatedAtAfter(user, queryTime).stream()

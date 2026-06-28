@@ -280,7 +280,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   addButton: {
-    backgroundColor: '#a855f7',
+    backgroundColor: '#6366f1',
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 8,
@@ -315,7 +315,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   tabTextActive: {
-    color: '#a855f7',
+    color: '#6366f1',
   },
   scrollContent: {
     padding: 20,
@@ -357,7 +357,7 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 4,
-    backgroundColor: '#a855f7',
+    backgroundColor: '#6366f1',
   },
   taskTitle: {
     color: '#f8fafc',
@@ -462,8 +462,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pickerBtnActive: {
-    backgroundColor: '#a855f7',
-    borderColor: '#a855f7',
+    backgroundColor: '#6366f1',
+    borderColor: '#6366f1',
   },
   pickerBtnText: {
     color: '#94a3b8',
@@ -493,7 +493,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   goalSelectTextActive: {
-    color: '#a855f7',
+    color: '#6366f1',
     fontWeight: 'bold',
   },
   modalActions: {
@@ -512,7 +512,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   saveBtn: {
-    backgroundColor: '#a855f7',
+    backgroundColor: '#6366f1',
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 8,

@@ -297,13 +297,13 @@ Powered by LifeOS`;
                     paddingVertical: 8,
                     borderRadius: 8,
                     borderWidth: 1,
-                    borderColor: newTargetPeriod === period ? '#a855f7' : '#1e293b',
+                    borderColor: newTargetPeriod === period ? '#6366f1' : '#1e293b',
                     backgroundColor: newTargetPeriod === period ? 'rgba(168, 85, 247, 0.1)' : '#090d16',
                     alignItems: 'center',
                   }}
                   onPress={() => setNewTargetPeriod(period)}
                 >
-                  <Text style={{ color: newTargetPeriod === period ? '#a855f7' : '#94a3b8', fontSize: 11, fontWeight: 'bold' }}>
+                  <Text style={{ color: newTargetPeriod === period ? '#6366f1' : '#94a3b8', fontSize: 11, fontWeight: 'bold' }}>
                     {period === 'WEEKLY' ? 'Weekly' : period === 'MONTHLY' ? 'Monthly' : 'Yearly'}
                   </Text>
                 </TouchableOpacity>
@@ -320,12 +320,12 @@ Powered by LifeOS`;
                       paddingVertical: 6,
                       borderRadius: 12,
                       borderWidth: 1,
-                      borderColor: !newTargetGoalId ? '#a855f7' : '#1e293b',
+                      borderColor: !newTargetGoalId ? '#6366f1' : '#1e293b',
                       backgroundColor: !newTargetGoalId ? 'rgba(168, 85, 247, 0.1)' : '#090d16',
                     }}
                     onPress={() => setNewTargetGoalId('')}
                   >
-                    <Text style={{ color: !newTargetGoalId ? '#a855f7' : '#94a3b8', fontSize: 10 }}>No Link</Text>
+                    <Text style={{ color: !newTargetGoalId ? '#6366f1' : '#94a3b8', fontSize: 10 }}>No Link</Text>
                   </TouchableOpacity>
                   {goals.map((g: any) => (
                     <TouchableOpacity
@@ -335,12 +335,12 @@ Powered by LifeOS`;
                         paddingVertical: 6,
                         borderRadius: 12,
                         borderWidth: 1,
-                        borderColor: newTargetGoalId === g.id ? '#a855f7' : '#1e293b',
+                        borderColor: newTargetGoalId === g.id ? '#6366f1' : '#1e293b',
                         backgroundColor: newTargetGoalId === g.id ? 'rgba(168, 85, 247, 0.1)' : '#090d16',
                       }}
                       onPress={() => setNewTargetGoalId(g.id)}
                     >
-                      <Text style={{ color: newTargetGoalId === g.id ? '#a855f7' : '#94a3b8', fontSize: 10 }}>{g.title}</Text>
+                      <Text style={{ color: newTargetGoalId === g.id ? '#6366f1' : '#94a3b8', fontSize: 10 }}>{g.title}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -351,7 +351,7 @@ Powered by LifeOS`;
                   paddingHorizontal: 16,
                   paddingVertical: 8,
                   borderRadius: 8,
-                  backgroundColor: '#a855f7',
+                  backgroundColor: '#6366f1',
                   justifyContent: 'center',
                   alignItems: 'center',
                 }}
@@ -379,7 +379,7 @@ Powered by LifeOS`;
                 </View>
                 
                 <View style={styles.progressBarContainer}>
-                  <View style={[styles.progressBar, { width: `${progressPercent}%`, backgroundColor: period === 'WEEKLY' ? '#a855f7' : period === 'MONTHLY' ? '#06b6d4' : '#8b5cf6' }]} />
+                  <View style={[styles.progressBar, { width: `${progressPercent}%`, backgroundColor: period === 'WEEKLY' ? '#6366f1' : period === 'MONTHLY' ? '#06b6d4' : '#8b5cf6' }]} />
                 </View>
 
                 {periodItems.map((item: any) => {
@@ -566,7 +566,7 @@ const styles = StyleSheet.create({
     borderColor: '#334155',
   },
   syncing: {
-    borderColor: '#a855f7',
+    borderColor: '#6366f1',
     backgroundColor: 'rgba(168, 85, 247, 0.1)',
   },
   synced: {
@@ -629,7 +629,7 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     height: '100%',
-    backgroundColor: '#a855f7',
+    backgroundColor: '#6366f1',
     borderRadius: 3,
   },
   sectionCard: {
@@ -651,7 +651,7 @@ const styles = StyleSheet.create({
     color: '#f8fafc',
   },
   manageLink: {
-    color: '#a855f7',
+    color: '#6366f1',
     fontWeight: '600',
     fontSize: 13,
   },
@@ -687,7 +687,7 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 4,
-    backgroundColor: '#a855f7',
+    backgroundColor: '#6366f1',
   },
   taskTextContainer: {
     flex: 1,
@@ -724,7 +724,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     height: 40,
     borderRadius: 8,
-    backgroundColor: '#a855f7',
+    backgroundColor: '#6366f1',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -768,7 +768,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#131b2d',
     borderWidth: 1,
-    borderColor: '#3b0764',
+    borderColor: '#1e1b4b',
     borderRadius: 12,
     padding: 12,
     marginTop: -4,
@@ -782,13 +782,13 @@ const styles = StyleSheet.create({
   wrappedBannerBtn: {
     backgroundColor: 'rgba(168, 85, 247, 0.15)',
     borderWidth: 1,
-    borderColor: '#a855f7',
+    borderColor: '#6366f1',
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 8,
   },
   wrappedBannerBtnText: {
-    color: '#a855f7',
+    color: '#6366f1',
     fontSize: 11,
     fontWeight: 'bold',
   },

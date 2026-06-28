@@ -665,7 +665,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   addButton: {
-    backgroundColor: '#a855f7',
+    backgroundColor: '#6366f1',
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 8,
@@ -692,13 +692,13 @@ const styles = StyleSheet.create({
   createBtn: {
     backgroundColor: 'rgba(168, 85, 247, 0.1)',
     borderWidth: 1,
-    borderColor: '#a855f7',
+    borderColor: '#6366f1',
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 8,
   },
   createBtnText: {
-    color: '#a855f7',
+    color: '#6366f1',
     fontWeight: 'bold',
   },
   goalCard: {
@@ -744,7 +744,7 @@ const styles = StyleSheet.create({
   },
   statusInProgress: {
     backgroundColor: 'rgba(168, 85, 247, 0.1)',
-    color: '#a855f7',
+    color: '#6366f1',
   },
   actions: {
     flexDirection: 'row',
@@ -772,12 +772,12 @@ const styles = StyleSheet.create({
   motivationBox: {
     backgroundColor: 'rgba(168, 85, 247, 0.05)',
     borderLeftWidth: 3,
-    borderLeftColor: '#a855f7',
+    borderLeftColor: '#6366f1',
     padding: 10,
     borderRadius: 4,
   },
   motivationText: {
-    color: '#a855f7',
+    color: '#6366f1',
     fontStyle: 'italic',
     fontSize: 12,
   },
@@ -805,7 +805,7 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     height: '100%',
-    backgroundColor: '#a855f7',
+    backgroundColor: '#6366f1',
     borderRadius: 4,
   },
   modalOverlay: {
@@ -862,8 +862,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pickerBtnActive: {
-    backgroundColor: '#a855f7',
-    borderColor: '#a855f7',
+    backgroundColor: '#6366f1',
+    borderColor: '#6366f1',
   },
   pickerBtnText: {
     color: '#94a3b8',
@@ -889,7 +889,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   saveBtn: {
-    backgroundColor: '#a855f7',
+    backgroundColor: '#6366f1',
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 8,
@@ -951,7 +951,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 2,
-    backgroundColor: '#a855f7',
+    backgroundColor: '#6366f1',
   },
   checkItemText: {
     color: '#f8fafc',
@@ -979,7 +979,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   tinyAddBtn: {
-    backgroundColor: '#a855f7',
+    backgroundColor: '#6366f1',
     paddingHorizontal: 12,
     height: 32,
     borderRadius: 6,
@@ -1003,7 +1003,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1e293b',
   },
   treeAddBtnText: {
-    color: '#a855f7',
+    color: '#6366f1',
     fontSize: 10,
     fontWeight: '600',
   },
@@ -1035,7 +1035,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   roadmapItemActive: {
-    color: '#a855f7',
+    color: '#6366f1',
     fontSize: 10,
   },
   emptyTextTiny: {

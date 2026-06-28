@@ -97,7 +97,7 @@ export default function SettingsScreen({ sync, onLoginStateChange }: Props) {
           <Text style={[
             styles.infoValue,
             syncStatus === 'synced' && { color: '#10b981' },
-            syncStatus === 'syncing' && { color: '#a855f7' },
+            syncStatus === 'syncing' && { color: '#6366f1' },
             syncStatus === 'error' && { color: '#ef4444' }
           ]}>
             {syncStatus.toUpperCase()}
@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   syncBtn: {
-    backgroundColor: '#a855f7',
+    backgroundColor: '#6366f1',
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
@@ -269,13 +269,13 @@ const styles = StyleSheet.create({
   saveBtn: {
     backgroundColor: 'rgba(168, 85, 247, 0.1)',
     borderWidth: 1,
-    borderColor: '#a855f7',
+    borderColor: '#6366f1',
     paddingVertical: 10,
     borderRadius: 8,
     alignItems: 'center',
   },
   saveBtnText: {
-    color: '#a855f7',
+    color: '#6366f1',
     fontWeight: 'bold',
     fontSize: 14,
   },
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   loginBtn: {
-    backgroundColor: '#a855f7',
+    backgroundColor: '#6366f1',
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',

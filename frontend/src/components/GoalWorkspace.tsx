@@ -1,10 +1,7 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useMemo } from "react";
 import type { Goal, Roadmap, RoadmapNode, Task, Note, Habit } from "../types/lifeOs";
-import { calculateNodeProgress } from "../utils/calculators";
+import { calculateNodeProgress, getLocalDateStr, isValidDateStr } from "../utils/calculators";
 import { MARKETPLACE_TEMPLATES } from "./RoadmapsTab";
-import { clearTokens, getRefreshToken } from "../utils/auth";
-import { logout } from "../api/authApi";
 import { useFeedback } from "../hooks/useFeedback";
 
 interface Props {
@@ -41,24 +38,13 @@ export function GoalWorkspace({
   saveHabit,
   deleteEntity,
 }: Props) {
-  const navigate = useNavigate();
-  const { showConfirm } = useFeedback();
+  const { showConfirm, showToast } = useFeedback();
   const [activeTab, setActiveTab] = useState<"roadmap" | "tree" | "timeline" | "progress" | "resources">("roadmap");
   const [selectedNode, setSelectedNode] = useState<RoadmapNode | null>(null);
   const [rescheduleNotification, setRescheduleNotification] = useState<string | null>(null);
+  const [dismissedReschedule, setDismissedReschedule] = useState(false);
 
-  const handleLogout = () => {
-    try {
-      const refreshToken = getRefreshToken();
-      if (refreshToken) {
-        logout(refreshToken).catch((err) => console.warn("Logout from workspace failed: ", err));
-      }
-    } catch (error) {
-      console.error("Logout error: ", error);
-    }
-    clearTokens();
-    navigate("/login");
-  };
+
 
   // Folder resource states
   const [collapsedFolders, setCollapsedFolders] = useState<{ [category: string]: boolean }>({});
@@ -106,11 +92,13 @@ export function GoalWorkspace({
     }
   }, [selectedNode]);
 
-  // Dynamic Timeline Rescheduling (GPS Rerouting)
-  useEffect(() => {
-    if (!roadmap || activeNodes.length === 0) return;
+  // Derived Rescheduling values to avoid calling setState inside an effect
+  const { overdueDaysToShift, showRescheduleBanner } = useMemo(() => {
+    if (!roadmap || activeNodes.length === 0) {
+      return { overdueDaysToShift: 0, showRescheduleBanner: false };
+    }
 
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = getLocalDateStr();
     const goalTasks = tasks.filter((t) => t.goalId === goal.id);
 
     let maxOverdueDays = 0;
@@ -142,63 +130,71 @@ export function GoalWorkspace({
       }
     });
 
-    if (overdueDetected && maxOverdueDays > 0) {
-      // Shift overdue and future items
-      // 1. Shift Tasks
-      goalTasks.forEach((t) => {
-        if (t.dueDate) {
-          const originalDate = new Date(t.dueDate);
-          const dateStr = t.dueDate.split("T")[0];
-          const timePart = t.dueDate.includes("T") ? t.dueDate.split("T")[1] : "12:00:00";
+    return {
+      overdueDaysToShift: maxOverdueDays,
+      showRescheduleBanner: overdueDetected && maxOverdueDays > 0
+    };
+  }, [goal.id, roadmap, activeNodes, tasks]);
 
-          if (t.status !== "DONE" && dateStr < todayStr) {
-            t.dueDate = `${todayStr}T${timePart}`;
-            saveTask(t);
-          } else if (dateStr >= todayStr) {
-            originalDate.setDate(originalDate.getDate() + maxOverdueDays);
-            t.dueDate = `${originalDate.toISOString().split("T")[0]}T${timePart}`;
-            saveTask(t);
-          }
+  const handleRescheduleTimeline = () => {
+    if (!roadmap || activeNodes.length === 0 || overdueDaysToShift <= 0) return;
+
+    const todayStr = getLocalDateStr();
+    const goalTasks = tasks.filter((t) => t.goalId === goal.id);
+
+    // 1. Shift Tasks
+    goalTasks.forEach((t) => {
+      if (t.dueDate) {
+        const originalDate = new Date(t.dueDate);
+        const dateStr = t.dueDate.split("T")[0];
+        const timePart = t.dueDate.includes("T") ? t.dueDate.split("T")[1] : "12:00:00";
+
+        if (t.status !== "DONE" && dateStr < todayStr) {
+          t.dueDate = `${todayStr}T${timePart}`;
+          saveTask(t);
+        } else if (dateStr >= todayStr) {
+          originalDate.setDate(originalDate.getDate() + overdueDaysToShift);
+          t.dueDate = `${getLocalDateStr(originalDate)}T${timePart}`;
+          saveTask(t);
         }
-      });
+      }
+    });
 
-      // 2. Shift Nodes
-      let nodesChanged = false;
-      const updatedNodes = activeNodes.map((n) => {
-        if (n.deadline) {
-          const originalDate = new Date(n.deadline);
-          const dateStr = n.deadline.split("T")[0];
-          if (n.status !== "COMPLETED" && dateStr < todayStr) {
-            n.deadline = todayStr;
-            nodesChanged = true;
-          } else if (dateStr >= todayStr) {
-            originalDate.setDate(originalDate.getDate() + maxOverdueDays);
-            n.deadline = originalDate.toISOString().split("T")[0];
-            nodesChanged = true;
-          }
+    // 2. Shift Nodes
+    let nodesChanged = false;
+    const updatedNodes = activeNodes.map((n) => {
+      if (n.deadline) {
+        const originalDate = new Date(n.deadline);
+        const dateStr = n.deadline.split("T")[0];
+        if (n.status !== "COMPLETED" && dateStr < todayStr) {
+          n.deadline = todayStr;
+          nodesChanged = true;
+        } else if (dateStr >= todayStr) {
+          originalDate.setDate(originalDate.getDate() + overdueDaysToShift);
+          n.deadline = getLocalDateStr(originalDate);
+          nodesChanged = true;
         }
-        return n;
-      });
-
-      if (nodesChanged) {
-        saveRoadmap(roadmap, updatedNodes);
       }
+      return n;
+    });
 
-      // 3. Shift Goal target date
-      if (goal.targetDate) {
-        const goalDate = new Date(goal.targetDate);
-        goalDate.setDate(goalDate.getDate() + maxOverdueDays);
-        saveGoal({
-          ...goal,
-          targetDate: goalDate.toISOString().split("T")[0],
-        });
-      }
-
-      setRescheduleNotification(
-        `Overdue milestones detected. Auto-shifted remaining dates by ${maxOverdueDays} days to preserve path structure.`
-      );
+    if (nodesChanged) {
+      saveRoadmap(roadmap, updatedNodes);
     }
-  }, [goal.id, roadmap]);
+
+    // 3. Shift Goal target date
+    if (goal.targetDate) {
+      const goalDate = new Date(goal.targetDate);
+      goalDate.setDate(goalDate.getDate() + overdueDaysToShift);
+      saveGoal({
+        ...goal,
+        targetDate: getLocalDateStr(goalDate),
+      });
+    }
+
+    showToast(`Timeline successfully rescheduled! Shifted remaining dates by ${overdueDaysToShift} days.`, "success");
+    setDismissedReschedule(true);
+  };
 
   const handleInitializeRoadmap = () => {
     const newRoadmapId = crypto.randomUUID();
@@ -291,6 +287,17 @@ export function GoalWorkspace({
 
   const handleUpdateNode = () => {
     if (!selectedNode || !roadmap) return;
+
+    if (editingNodeDeadline && !isValidDateStr(editingNodeDeadline)) {
+      showToast("Please enter a valid target date with a 4-digit year.", "error");
+      return;
+    }
+
+    const todayStr = getLocalDateStr();
+    if (editingNodeDeadline && editingNodeDeadline < todayStr && editingNodeStatus !== "COMPLETED") {
+      showToast("Warning: Milestone target date is set in the past.", "info");
+    }
+
     const updated: RoadmapNode = {
       ...selectedNode,
       title: editingNodeTitle,
@@ -325,6 +332,17 @@ export function GoalWorkspace({
 
   const handleAddMilestone = () => {
     if (!selectedNode || !newMilestoneTitle.trim() || !newMilestoneDate) return;
+
+    if (newMilestoneDate && !isValidDateStr(newMilestoneDate)) {
+      showToast("Please enter a valid milestone date with a 4-digit year.", "error");
+      return;
+    }
+
+    const todayStr = getLocalDateStr();
+    if (newMilestoneDate < todayStr) {
+      showToast("Warning: Milestone target date is set in the past.", "info");
+    }
+
     saveTask({
       id: crypto.randomUUID(),
       goalId: goal.id,
@@ -1413,20 +1431,6 @@ export function GoalWorkspace({
           </div>
         <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
           <button
-            className="btn btn-secondary"
-            style={{
-              padding: "6px 14px",
-              fontSize: "13px",
-              fontWeight: "600",
-              borderRadius: "var(--border-radius-sm)",
-              cursor: "pointer",
-              transition: "var(--transition)",
-            }}
-            onClick={handleLogout}
-          >
-            Logout
-          </button>
-          <button
             className="btn"
             style={{
               backgroundColor: "rgba(220, 38, 38, 0.05)",
@@ -1458,6 +1462,29 @@ export function GoalWorkspace({
     </div>
 
       <div className="workspace-body" style={{ position: "relative" }}>
+        {showRescheduleBanner && !dismissedReschedule && (
+          <div className="reschedule-warning-banner">
+            <div className="reschedule-warning-content">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ flexShrink: 0, color: "var(--warning)" }}>
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              <span>
+                <strong>Timeline Deviation:</strong> You have overdue roadmap items or tasks. Keep your timeline realistic by shifting your target dates by <strong>{overdueDaysToShift} days</strong>.
+              </span>
+            </div>
+            <div className="reschedule-warning-actions">
+              <button className="btn btn-secondary" onClick={() => setDismissedReschedule(true)}>
+                Dismiss
+              </button>
+              <button className="btn btn-primary" onClick={handleRescheduleTimeline}>
+                Reschedule Timeline
+              </button>
+            </div>
+          </div>
+        )}
+
         {rescheduleNotification && (
           <div
             style={{

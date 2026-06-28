@@ -13,6 +13,7 @@ import type {
   HabitLog,
   HorizonGoal,
 } from "../types/lifeOs";
+import { syncWithServer } from "../api/lifeOsApi";
 
 export function useLifeOsSync() {
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -273,6 +274,52 @@ export function useLifeOsSync() {
     }
   }, [goals, roadmaps, roadmapNodes, tasks, projects, projectMilestones, learningItems, notes, journals, habits, habitLogs, horizonGoals]);
 
+  const syncWithBackendDb = useCallback(async () => {
+    setSyncStatus("syncing");
+    try {
+      const requestPayload = {
+        lastSyncTime: lastSyncTime || undefined,
+        goals,
+        roadmaps,
+        roadmapNodes,
+        tasks,
+        projects,
+        projectMilestones,
+        learningItems,
+        notes,
+        journals,
+        habits,
+        habitLogs,
+      };
+
+      const response = await syncWithServer(requestPayload);
+
+      saveAllLocal(
+        response.goals,
+        response.roadmaps,
+        response.roadmapNodes,
+        response.tasks,
+        response.projects,
+        response.projectMilestones,
+        response.learningItems,
+        response.notes,
+        response.journals,
+        response.habits,
+        response.habitLogs,
+        response.syncTime,
+        horizonGoals
+      );
+
+      setSyncStatus("synced");
+      setRetryCount(0);
+      return true;
+    } catch (e: any) {
+      console.error("Backend sync failed:", e);
+      setSyncStatus("error");
+      return false;
+    }
+  }, [goals, roadmaps, roadmapNodes, tasks, projects, projectMilestones, learningItems, notes, journals, habits, habitLogs, horizonGoals, lastSyncTime]);
+
   const connectGoogleDrive = useCallback((accessToken: string) => {
     localStorage.setItem("lifeos_google_access_token", accessToken);
     const expiry = new Date();
@@ -284,16 +331,37 @@ export function useLifeOsSync() {
 
   // Sync function
   const triggerSync = useCallback(async () => {
+    setSyncStatus("syncing");
+    let backendSuccess = false;
+
+    // 1. Sync with LifeOS Backend if authenticated
+    const accessToken = localStorage.getItem("lifeos_access_token");
+    if (accessToken) {
+      backendSuccess = await syncWithBackendDb();
+    }
+
+    // 2. Sync with Google Drive if connected
     const token = localStorage.getItem("lifeos_google_access_token");
     const expiryStr = localStorage.getItem("lifeos_google_token_expiry");
 
     if (token && expiryStr && new Date(expiryStr) > new Date()) {
-      await syncWithGoogleDrive(token);
+      try {
+        await syncWithGoogleDrive(token);
+      } catch (e) {
+        console.error("Google Drive sync failed:", e);
+        if (!backendSuccess) {
+          setSyncStatus("error");
+        }
+      }
     } else {
       setGoogleDriveConnected(false);
-      setSyncStatus("idle");
+      if (backendSuccess) {
+        setSyncStatus("synced");
+      } else if (!accessToken) {
+        setSyncStatus("idle");
+      }
     }
-  }, [syncWithGoogleDrive]);
+  }, [syncWithBackendDb, syncWithGoogleDrive]);
 
   // CRUD Actions helper (saves locally and updates timestamps)
   const saveGoal = (goal: Goal) => {

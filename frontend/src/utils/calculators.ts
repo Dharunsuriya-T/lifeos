@@ -13,11 +13,44 @@ import type {
   HorizonGoal,
 } from '../types/lifeOs';
 
+// Helper to validate standard YYYY-MM-DD date format with a 4-digit year limit
+export const isValidDateStr = (dateStr: string | null | undefined): boolean => {
+  if (!dateStr) return false;
+  const cleanStr = dateStr.split('T')[0];
+  const parts = cleanStr.split('-');
+  if (parts.length !== 3) return false;
+  const y = Number(parts[0]);
+  const m = Number(parts[1]);
+  const d = Number(parts[2]);
+  if (isNaN(y) || isNaN(m) || isNaN(d)) return false;
+  // Year must be a 4-digit number (1000 - 2100)
+  if (y < 1000 || y > 2100) return false;
+  if (m < 1 || m > 12) return false;
+  if (d < 1 || d > 31) return false;
+  const dObj = new Date(y, m - 1, d);
+  return !isNaN(dObj.getTime()) && dObj.getFullYear() === y && dObj.getMonth() === m - 1 && dObj.getDate() === d;
+};
+
 // Helper to decrement dates
 export const decrementDateStr = (dateStr: string, days: number): string => {
-  const parts = dateStr.split('-');
-  const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  if (!isValidDateStr(dateStr)) {
+    return getLocalDateStr();
+  }
+  const cleanStr = dateStr.split('T')[0];
+  const parts = cleanStr.split('-');
+  const yyyyVal = Number(parts[0]);
+  const mmVal = Number(parts[1]) - 1;
+  const ddVal = Number(parts[2]);
+  const d = new Date(yyyyVal, mmVal, ddVal);
   d.setDate(d.getDate() - days);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+// Helper to get local date string YYYY-MM-DD
+export const getLocalDateStr = (d: Date = new Date()): string => {
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const dd = String(d.getDate()).padStart(2, '0');
@@ -117,7 +150,7 @@ export function calculateHabitStreak(habitId: string, habitLogs: HabitLog[]): nu
 
   if (completedLogs.length === 0) return 0;
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalDateStr();
   const yesterdayStr = decrementDateStr(todayStr, 1);
 
   let expected = todayStr;
@@ -153,7 +186,7 @@ export function calculateDashboardData(
   habitLogs: HabitLog[],
   journals: Journal[]
 ): DashboardData {
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalDateStr();
 
   // 1. todayTasksCount: t.dueDate <= today and t.status !== 'DONE'
   const todayTasksCount = tasks.filter(t => {
@@ -292,7 +325,7 @@ export function calculateAnalyticsData(
   journals: Journal[],
   horizonGoals: HorizonGoal[]
 ): AnalyticsData {
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalDateStr();
 
   // Helper to calculate Growth Score for a given time window
   const getGrowthScoreForPeriod = (endDay: string): number => {

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Habit, HabitLog, HabitFrequency } from "../types/lifeOs";
+import { getLocalDateStr } from "../utils/calculators";
 
 interface Props {
   habits: Habit[];
@@ -41,7 +42,7 @@ export function HabitsTab({ habits, habitLogs, saveHabit, deleteHabit }: Props) 
   const handleOpenEdit = (habit: Habit) => {
     setEditingHabit(habit);
     setTitle(habit.title);
-    setDescription(habit.description || "");
+    setDescription((habit.description || "").replace(/\[Linked Node: [a-f0-9-]+\]\s*/g, '').trim());
     setFrequency(habit.frequency);
     setShowModal(true);
   };
@@ -49,10 +50,19 @@ export function HabitsTab({ habits, habitLogs, saveHabit, deleteHabit }: Props) 
   const handleSave = () => {
     if (!title.trim()) return;
 
+    // Preserve any existing Linked Node metadata
+    let finalDescription = description;
+    if (editingHabit?.description) {
+      const match = editingHabit.description.match(/\[Linked Node: [a-f0-9-]+\]/);
+      if (match) {
+        finalDescription = `${description}\n${match[0]}`.trim();
+      }
+    }
+
     const habitData: Habit = {
       id: editingHabit?.id || crypto.randomUUID(),
       title,
-      description,
+      description: finalDescription,
       frequency,
       streak: editingHabit?.streak || 0,
       createdAt: editingHabit?.createdAt,
@@ -63,12 +73,12 @@ export function HabitsTab({ habits, habitLogs, saveHabit, deleteHabit }: Props) 
   };
 
   const isHabitCompletedOnDate = (habitId: string, date: Date) => {
-    const dateStr = date.toISOString().split("T")[0];
+    const dateStr = getLocalDateStr(date);
     return habitLogs.some((l) => l.habitId === habitId && l.completedDate === dateStr && l.isCompleted);
   };
 
   const toggleHabitOnDate = (habit: Habit, date: Date) => {
-    const dateStr = date.toISOString().split("T")[0];
+    const dateStr = getLocalDateStr(date);
     const existingLog = habitLogs.find((l) => l.habitId === habit.id && l.completedDate === dateStr);
     
     const isCompleted = existingLog ? !existingLog.isCompleted : true;
@@ -114,7 +124,7 @@ export function HabitsTab({ habits, habitLogs, saveHabit, deleteHabit }: Props) 
               <span style={{ flexGrow: 1 }}>Habit Routines</span>
               <div className="habit-week-completion">
                 {last7Days.map((d, i) => (
-                  <div key={i} style={{ width: "34px", textAlign: "center", textTransform: "uppercase" }}>
+                  <div key={i} style={{ width: "38px", border: "2px solid transparent", textAlign: "center", textTransform: "uppercase" }}>
                     {d.toLocaleDateString(undefined, { weekday: "narrow" })}
                   </div>
                 ))}
@@ -132,7 +142,9 @@ export function HabitsTab({ habits, habitLogs, saveHabit, deleteHabit }: Props) 
                     </span>
                   </div>
                   {habit.description && (
-                    <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>{habit.description}</span>
+                    <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                      {habit.description.replace(/\[Linked Node: [a-f0-9-]+\]\s*/g, '').trim()}
+                    </span>
                   )}
                   <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
                     <button style={{ border: "none", background: "none", color: "var(--primary)", fontSize: "11px", fontWeight: "600", cursor: "pointer", padding: 0 }} onClick={() => handleOpenEdit(habit)}>

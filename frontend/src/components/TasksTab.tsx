@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { Task, TaskPriority, TaskStatus, Goal, Project, RoadmapNode } from "../types/lifeOs";
 
 interface Props {
@@ -37,7 +37,12 @@ export function TasksTab({ tasks, goals, projects, roadmapNodes, saveTask, delet
     }
   });
 
-  const lifeAreas = ["Personal Development", "Career", "Health & Fitness", "Finance", "Learning", "Relationships", ...customCategories];
+  const lifeAreas = useMemo(() => {
+    const defaultAreas = ["Personal Development", "Career", "Health & Fitness", "Finance", "Learning", "Relationships"];
+    const taskAreas = tasks.map((t) => t.lifeArea || "").filter((a) => a.trim() !== "");
+    const merged = Array.from(new Set([...defaultAreas, ...customCategories, ...taskAreas]));
+    return merged;
+  }, [tasks, customCategories]);
 
   const [dueTime, setDueTime] = useState("12:00");
 
@@ -466,76 +471,83 @@ export function TasksTab({ tasks, goals, projects, roadmapNodes, saveTask, delet
                 </div>
               </div>
 
-              <div className="grid-cols-2" style={{ gap: "12px" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <label style={{ fontSize: "13px", fontWeight: "600" }}>Estimated Time (minutes)</label>
-                  <input
-                    type="number"
-                    className="input"
-                    value={estimatedTime}
-                    onChange={(e) => setEstimatedTime(Number(e.target.value))}
-                  />
-                </div>
+              <details style={{ marginTop: "12px", borderTop: "1px solid var(--surface-border)", paddingTop: "12px" }}>
+                <summary style={{ fontSize: "13px", fontWeight: "700", cursor: "pointer", color: "var(--primary)", display: "flex", alignItems: "center", gap: "6px", userSelect: "none" }}>
+                  <span>⚙️ Additional Settings (Time, Recurrence, Links)</span>
+                </summary>
+                <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "12px" }}>
+                  <div className="grid-cols-2" style={{ gap: "12px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                      <label style={{ fontSize: "13px", fontWeight: "600" }}>Estimated Time (minutes)</label>
+                      <input
+                        type="number"
+                        className="input"
+                        value={estimatedTime}
+                        onChange={(e) => setEstimatedTime(Number(e.target.value))}
+                      />
+                    </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <label style={{ fontSize: "13px", fontWeight: "600" }}>Actual Time Spent (minutes)</label>
-                  <input
-                    type="number"
-                    className="input"
-                    value={actualTime}
-                    onChange={(e) => setActualTime(Number(e.target.value))}
-                  />
-                </div>
-              </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                      <label style={{ fontSize: "13px", fontWeight: "600" }}>Actual Time Spent (minutes)</label>
+                      <input
+                        type="number"
+                        className="input"
+                        value={actualTime}
+                        onChange={(e) => setActualTime(Number(e.target.value))}
+                      />
+                    </div>
+                  </div>
 
-              <div style={{ display: "flex", gap: "12px", alignItems: "center", margin: "8px 0" }}>
-                <input
-                  type="checkbox"
-                  id="chk-recurring"
-                  checked={isRecurring}
-                  onChange={(e) => setIsRecurring(e.target.checked)}
-                />
-                <label htmlFor="chk-recurring" style={{ fontSize: "13px", fontWeight: "600" }}>Recurring Task</label>
-                {isRecurring && (
-                  <select className="select" style={{ width: "120px", padding: "6px" }} value={recurrencePattern} onChange={(e) => setRecurrencePattern(e.target.value)}>
-                    <option value="DAILY">Daily</option>
-                    <option value="WEEKLY">Weekly</option>
-                    <option value="MONTHLY">Monthly</option>
-                  </select>
-                )}
-              </div>
+                  <div style={{ display: "flex", gap: "12px", alignItems: "center", margin: "8px 0" }}>
+                    <input
+                      type="checkbox"
+                      id="chk-recurring"
+                      checked={isRecurring}
+                      onChange={(e) => setIsRecurring(e.target.checked)}
+                    />
+                    <label htmlFor="chk-recurring" style={{ fontSize: "13px", fontWeight: "600" }}>Recurring Task</label>
+                    {isRecurring && (
+                      <select className="select" style={{ width: "120px", padding: "6px" }} value={recurrencePattern} onChange={(e) => setRecurrencePattern(e.target.value)}>
+                        <option value="DAILY">Daily</option>
+                        <option value="WEEKLY">Weekly</option>
+                        <option value="MONTHLY">Monthly</option>
+                      </select>
+                    )}
+                  </div>
 
-              <div className="grid-cols-3" style={{ gap: "8px" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <label style={{ fontSize: "11px", fontWeight: "600" }}>Goal Link</label>
-                  <select className="select" style={{ padding: "6px" }} value={goalId} onChange={(e) => setGoalId(e.target.value)}>
-                    <option value="">None</option>
-                    {goals.map((g) => (
-                      <option key={g.id} value={g.id}>{g.title}</option>
-                    ))}
-                  </select>
-                </div>
+                  <div className="grid-cols-3" style={{ gap: "8px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                      <label style={{ fontSize: "11px", fontWeight: "600" }}>Goal Link</label>
+                      <select className="select" style={{ padding: "6px" }} value={goalId} onChange={(e) => setGoalId(e.target.value)}>
+                        <option value="">None</option>
+                        {goals.map((g) => (
+                          <option key={g.id} value={g.id}>{g.title}</option>
+                        ))}
+                      </select>
+                    </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <label style={{ fontSize: "11px", fontWeight: "600" }}>Project Link</label>
-                  <select className="select" style={{ padding: "6px" }} value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-                    <option value="">None</option>
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>{p.title}</option>
-                    ))}
-                  </select>
-                </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                      <label style={{ fontSize: "11px", fontWeight: "600" }}>Project Link</label>
+                      <select className="select" style={{ padding: "6px" }} value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+                        <option value="">None</option>
+                        {projects.map((p) => (
+                          <option key={p.id} value={p.id}>{p.title}</option>
+                        ))}
+                      </select>
+                    </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <label style={{ fontSize: "11px", fontWeight: "600" }}>Roadmap Step</label>
-                  <select className="select" style={{ padding: "6px" }} value={roadmapNodeId} onChange={(e) => setRoadmapNodeId(e.target.value)}>
-                    <option value="">None</option>
-                    {roadmapNodes.map((rn) => (
-                      <option key={rn.id} value={rn.id}>{rn.title}</option>
-                    ))}
-                  </select>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                      <label style={{ fontSize: "11px", fontWeight: "600" }}>Roadmap Step</label>
+                      <select className="select" style={{ padding: "6px" }} value={roadmapNodeId} onChange={(e) => setRoadmapNodeId(e.target.value)}>
+                        <option value="">None</option>
+                        {roadmapNodes.map((rn) => (
+                          <option key={rn.id} value={rn.id}>{rn.title}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              </details>
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setShowModal(false)}>
